@@ -1,19 +1,23 @@
-# TODO: Add comment
+# These scripts use the taxon description dates that are part of the LifeGate data assembled by
+# Martin Freiberg to visualize cumulative description curves and link them to potential predictors.
+# Before this, data is compared between LCVP and LifeGate, and the estimation/extrapolation
+# process of a paper about species numbers in Nigeria is examinated.
 #
 # Author: David Schellenberger Costa
 ###################################################################################################
-# 1 Visualize data from LCVP and total numbers sent by Martin Freiberg
+# 1 Visualize data from LCVP and total numbers from LifeGate
 # 2 Try to reproduce the analyses from "Trends in botanical exploration in Nigeria forecast over
 #   1000 yet undescribed vascular plant species", https://doi.org/10.1093/aob/mcad106
-# 3 Work on Martin's data of all groups
-# 4 Distribution data compilation from GBIF
-# 5 Check body size data from Ulrich Brose's lab
-# 6 Source data from BiL explorer
-# 7 Alternative measure of public interest
-# 8 Combine data from different sources
+# 3 Visualize LifeGate description dates
+# 4 Approximate distribution of description dates using functions
+# 5 Source distribution data from GBIF
+# 6 Source body size data from Ulrich Brose's lab
+# 7 Source data from BiL explorer
+# 8 Source measure of public interest based on Wikipedia article lengths and Google hits
+# 9 Analyse taxon description data
 ###################################################################################################
 
-# 1 Visualize data from LCVP and total numbers sent by Martin Freiberg#############################
+# 1 Visualize data from LCVP and total numbers sent by LifeGate####################################
 nextScript <- NULL
 
 # load in libraries
@@ -70,7 +74,7 @@ lcvp2 <- lcvp2[year < 2023]
 # add data from Martin
 lines(lcvp2, type = "o", col = brewer.pal(8, "Accent")[2], lwd = 2)
 
-# Martin's aggregated data does not allow for much analyses.
+# LifeGate's aggregated data does not allow for much analyses.
 
 # 2 Try to reproduce the analyses from "Trends in botanical exploration in Nigeria forecast over###
 #   1000 yet undescribed vascular plant species", https://doi.org/10.1093/aob/mcad106##############
@@ -833,7 +837,7 @@ for (i in seq_along(models)) {
 }
 dev.off()
 
-# 3 Work on Martin's data of all groups############################################################
+# 3 Visualize LifeGate description dates###########################################################
 nextScript <- NULL
 
 # load in libraries
@@ -842,7 +846,6 @@ library(rotl) # get open source phylogenies (should eventually be data from Mart
 library(ape) # plot phylogenies nicely
 library(rphylopic) # get icons of taxonomic groups
 library(png) # plot icons of taxonomic groups
-library(rethinking) # approximate description times with functions
 
 # clear workspace
 rm(list = ls())
@@ -851,8 +854,8 @@ rm(list = ls())
 setwd(paste0(.brd, "taxon description dates"))
 
 # read in metadata
-groups <- data.table(file = list.files(path = "Arten pro Jahr beschrieben"))
-groups[, name := sub(".* ", "", sub("\\s+beschriebene.*", "", file))]
+groupsMeta <- data.table(file = list.files(path = "Arten pro Jahr beschrieben"))
+groupsMeta[, name := sub(".* ", "", sub("\\s+beschriebene.*", "", file))]
 # create regular expression to define groups receiving same colors (monophyletic groups of groups)
 # Chordata is the only group that receives a distinguished color
 groupRegs <- c(
@@ -860,51 +863,49 @@ groupRegs <- c(
 	"Rhodophyta|Chlorophyta|Bryophyta|Marchantiophyta|Tracheophyta", # plants
 	"ptera|Odo|Pso", # insects
 	"Platy|Gastro|Ecto|Mollus|Nemer|Anne", # Spiralia
-	"Hapto|Myzo|Cilio|Foram|Oo|Ochro", # mostly unicellular, mostly uniflagellate
+	# "Hapto|Myzo|Cilio|Foram|Oo|Ochro", # mostly unicellular, mostly uniflagellate
 	"Chor" # chordates
 )
-groupCols <- c("brown", "darkgreen", "red", "lightblue", "green", "blue") # colors of groups of groups
-groups[, color := "black"] # standard color
+groupCols <- c("brown", "darkgreen", "red", "lightblue", "blue") # colors of groups of groups
+groupsMeta[, color := "black"] # standard color
 for (i in seq_along(groupRegs)) {
-	groups[grepl(groupRegs[i], name), color := groupCols[i]]
+	groupsMeta[grepl(groupRegs[i], name), color := groupCols[i]]
 }
-groupsVec <- seq_len(nrow(groups)) # create a convenience vector to process all groups
-groups[, finalAuthorData := 1]
-groups[grepl("Basidio|Asco|Micro|Chloro|Rhodo|Chytridio|Bryo|Cilio|Eugleno|Fora|Hapto|March|Myzo|Ochro|Oomyc", name), finalAuthorData := 0]
-
+groupsVec <- seq_len(nrow(groupsMeta)) # create a convenience vector to process all groups
+groupsMeta[, finalAuthorData := 1]
+groupsMeta[grepl("Basidio|Asco|Micro|Chloro|Rhodo|Chytridio|Bryo|Cilio|Eugleno|Fora|Hapto|March|Myzo|Ochro|Oomyc", name), finalAuthorData := 0]
 
 # read in data
-groupsData <- fread(paste0("Arten pro Jahr beschrieben/", groups$file[1]))
+groupsData <- fread(paste0("Arten pro Jahr beschrieben/", groupsMeta$file[1]))
 for (i in groupsVec) {
 	if (i > 1) {
 		groupsData <- cbind(groupsData, fread(paste0(
 			"Arten pro Jahr beschrieben/",
-			groups$file[i]
+			groupsMeta$file[i]
 		))$V2)
 	}
 }
-colnames(groupsData) <- c("year", groups$name)
-# reduce data to before 2019 (as it is not complete afterwards)
-groupsData <- groupsData[year < 2018]
+colnames(groupsData) <- c("year", groupsMeta$name)
 authorData <- fread(paste0(
 	"AutorStat/",
-	list.files(path = "AutorStat")[grepl(groups$name[1], list.files(path = "AutorStat"))]
+	list.files(path = "AutorStat")[grepl(groupsMeta$name[1], list.files(path = "AutorStat"))]
 ))
-for (i in seq_len(nrow(groups))) {
+for (i in groupsVec) {
 	if (i > 1) {
 		authorData <- cbind(authorData, fread(paste0("AutorStat/", list.files(path = "AutorStat")
-		[grepl(groups$name[i], list.files(path = "AutorStat"))]))$V2)
+		[grepl(groupsMeta$name[i], list.files(path = "AutorStat"))]))$V2)
 	}
 }
-colnames(authorData) <- c("year", groups$name)
-# reduce data to before 2019 (as it is not complete afterwards)
+colnames(authorData) <- c("year", groupsMeta$name)
+
+# reduce data to before 2018 (as it is not complete afterwards)
+groupsData <- groupsData[year < 2018]
 authorData <- authorData[year < 2018]
-colSums(authorData[, -"year"])
 
 # retrieve phylogenetic information for the taxonomic groups
 
 # retrieve OTT (Open Tree Taxonomy) IDs
-# taxa <- data.table(tnrs_match_names(sub(".*\\s", "", groups$name))) # get OTT IDs from TNRS
+# taxa <- data.table(tnrs_match_names(sub(".*\\s", "", groupsMeta$name))) # get OTT IDs from TNRS
 # fwrite(taxa,file=paste0("taxa_",Sys.Date(),".txt")) # be independent of server availability
 versions <- list.files(pattern = "taxa_.*\\.txt")
 taxa <- fread(versions[length(versions)])
@@ -964,17 +965,19 @@ pt$tip.label[!(pt$tip.label %in% taxa$unique_name)] <- c(
 # use search_string instead of unique_name as tip labels
 pt$tip.label <- taxa$search_string[sapply(pt$tip.label, function(x) which(x == taxa$unique_name))]
 # re-sort to show groups in order
-setcolorder(groupsData, c(1, sapply(pt$tip.label, function(x) which(groups$name == x)) + 1))
-setcolorder(authorData, c(1, sapply(pt$tip.label, function(x) which(groups$name == x)) + 1))
-groups <- groups[sapply(pt$tip.label, function(x) which(sub(".* ", "", groups$name) == x))]
+setcolorder(groupsData, c(1, sapply(pt$tip.label, function(x) which(groupsMeta$name == x)) + 1))
+setcolorder(authorData, c(1, sapply(pt$tip.label, function(x) which(groupsMeta$name == x)) + 1))
+groupsMeta <- groupsMeta[sapply(pt$tip.label, function(x) which(sub(".* ", "", groupsMeta$name) == x))]
+
 # write data for later use
+fwrite(groupsMeta, file = "groupsMeta.txt")
 fwrite(groupsData, file = "groupsData.txt")
 fwrite(authorData, file = "authorData.txt")
 
 # get icons of groups
 # done manually from phylopic.org
-# groups$name
-# groups[1, icon :=
+# groupsMeta$name
+# groupsMeta[1, icon :=
 # 	"1b329337-8f8b-4380-8aae-23d50e0db14f",
 # 	"4de6d5a6-bae9-432a-bb39-546791224857",
 # 	"cc68fe27-0e9a-442d-a28d-0de60e30869e",
@@ -1026,7 +1029,7 @@ fwrite(authorData, file = "authorData.txt")
 # i <- 1
 # get and save icons
 # for (i in groupsVec){
-# 	save_phylopic(get_phylopic(uuid = groups$icon[i]),path=paste0("icons/",groups$name[i],".svg"))
+# 	save_phylopic(get_phylopic(uuid = groupsMeta$icon[i]),path=paste0("icons/",groupsMeta$name[i],".svg"))
 # }
 
 parBackup <- par() # save graphics parameters for multiple trials
@@ -1050,8 +1053,10 @@ for (i in seq_along(groupCols)) {
 	}
 	cols[pt$edge[, 2] %in% edgesNew] <- groupCols[i]
 }
+cols[cols == "green"] <- "black" # remove unlabeled supergroup
+
 # set show.node.label=FALSE to TRUE for coloring purposes
-# pdf("group phylogeny.pdf")
+# pdf("groups phylogeny.pdf")
 par(parBackup)
 plot.phylo(pt,
 	show.node.label = FALSE, cex = 0.7, font = 1, type = "fan", x.lim = c(-xlim, xlim),
@@ -1060,19 +1065,19 @@ plot.phylo(pt,
 i <- 1
 tipIncrease <- 1.1 # tip length increase for figure plotting
 imageSize <- 0.07 # figure size factor
-for (i in seq_len(nrow(groups))) {
-	segments(cos(2 * pi * (i - 1) / nrow(groups)), sin(2 * pi * (i - 1) / nrow(groups)),
-		tipIncrease * cos(2 * pi * (i - 1) / nrow(groups)), tipIncrease * sin(2 * pi * (i - 1) / nrow(groups)),
-		lwd = 2, col = groups$color[i]
+for (i in groupsVec) {
+	segments(cos(2 * pi * (i - 1) / nrow(groupsMeta)), sin(2 * pi * (i - 1) / nrow(groupsMeta)),
+		tipIncrease * cos(2 * pi * (i - 1) / nrow(groupsMeta)), tipIncrease * sin(2 * pi * (i - 1) / nrow(groupsMeta)),
+		lwd = 2, col = groupsMeta$color[i]
 	)
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
-	colRGB <- col2rgb(groups$color[i]) / 255
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
+	colRGB <- col2rgb(groupsMeta$color[i]) / 255
 	for (j in 1:3) img[, , j] <- colRGB[[j]]
-	rasterImage(img, tipIncrease * cos(2 * pi * (i - 1) / nrow(groups)) - imageSize,
-		tipIncrease * sin(2 * pi * (i - 1) / nrow(groups)) - imageSize,
-		tipIncrease * cos(2 * pi * (i - 1) / nrow(groups)) + imageSize,
-		tipIncrease * sin(2 * pi * (i - 1) / nrow(groups)) + imageSize,
-		col = groups$color[i]
+	rasterImage(img, tipIncrease * cos(2 * pi * (i - 1) / nrow(groupsMeta)) - imageSize,
+		tipIncrease * sin(2 * pi * (i - 1) / nrow(groupsMeta)) - imageSize,
+		tipIncrease * cos(2 * pi * (i - 1) / nrow(groupsMeta)) + imageSize,
+		tipIncrease * sin(2 * pi * (i - 1) / nrow(groupsMeta)) + imageSize,
+		col = groupsMeta$color[i]
 	)
 }
 # dev.off()
@@ -1092,14 +1097,14 @@ for (i in groupsVec) {
 	abline(v = c(1800, 1900, 2000), lty = 3)
 	if ((i - 1) %% 10 < 1) axis(2, at = log(c(0, 10, 100, 1000) + 1), labels = c(0, 10, 100, 1000))
 	if (i > 37) axis(1, at = c(1800, 1900, 2000))
-	polygon(polyYear, c(log(groupsData[[i + 1]] + 1), zeros), border = NA, col = groups$col[i])
-	text(1800, log(5001), labels = gsub("\\s", "\n", groups$name[i]), adj = c(0, 1))
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+	polygon(polyYear, c(log(groupsData[[i + 1]] + 1), zeros), border = NA, col = groupsMeta$col[i])
+	text(1800, log(5001), labels = gsub("\\s", "\n", groupsMeta$name[i]), adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, max(log(groupsData + 1)))))
 	rasterImage(img, 1760, log(2001), 1790, log(2001) + scale)
 }
 mtext("year", 1, 3, at = 1450)
-mtext("descriptions", 2, 41.5, at = 23, xpd = TRUE)
+mtext("descriptions", 2, 52.5, at = 23, xpd = TRUE)
 # plot all groups in one sheet with cumulative relative values
 par(oma = c(5, 5, 1, 1))
 par(mar = c(0, 0, 0, 0))
@@ -1108,18 +1113,18 @@ for (i in groupsVec) {
 	plot(NULL, xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n")
 	abline(h = c(0.2, 0.4, 0.6, 0.8), lty = 3)
 	abline(v = c(1800, 1900, 2000), lty = 3)
-	if ((i - 1) %% 10 < 1) axis(2)
+	if ((i - 1) %% 10 < 1) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1))
 	if (i > 37) axis(1, at = c(1800, 1900, 2000))
 	polygon(polyYear, c(cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), zeros),
-		border = NA, col = groups$col[i]
+		border = NA, col = groupsMeta$col[i]
 	)
-	text(1800, log(5001) / max(log(groupsData + 1)), labels = groups$name[i], adj = c(0, 1))
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+	text(1800, log(5001) / max(log(groupsData + 1)), labels = groupsMeta$name[i], adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
 	rasterImage(img, 1760, log(2001) / max(log(groupsData + 1)), 1790, log(2001) / max(log(groupsData + 1)) + scale)
 }
 mtext("year", 1, 3, at = 1450)
-mtext("cumulative descriptions", 2, 38.5, at = 2.7, xpd = TRUE)
+mtext("cumulative descriptions", 2, 52.5, at = 2.7, xpd = TRUE)
 # plot all groups separately
 par(parBackup)
 for (i in groupsVec) {
@@ -1131,9 +1136,9 @@ for (i in groupsVec) {
 	abline(v = c(1800, 1900, 2000), lty = 3)
 	axis(2, at = log(c(0, 10, 100, 1000) + 1), labels = c(0, 10, 100, 1000))
 	axis(1, at = c(1800, 1900, 2000))
-	polygon(polyYear, c(log(groupsData[[i + 1]] + 1), zeros), border = NA, col = groups$col[i])
-	text(1800, log(5001), labels = groups$name[i], adj = c(0, 1))
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+	polygon(polyYear, c(log(groupsData[[i + 1]] + 1), zeros), border = NA, col = groupsMeta$col[i])
+	text(1800, log(5001), labels = groupsMeta$name[i], adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- diff(range(groupsData$year)) / diff(c(0, max(log(groupsData + 1)))) / 30
 	rasterImage(img, 1760, log(2001), 1790, log(2001) + scale)
 }
@@ -1150,22 +1155,42 @@ for (i in groupsVec) {
 	axis(2)
 	axis(1, at = c(1800, 1900, 2000))
 	polygon(polyYear, c(cumsum((groupsData[[i + 1]] + 1)) / sum(groupsData[[i + 1]] + 1), zeros),
-		border = NA, col = groups$col[i]
+		border = NA, col = groupsMeta$col[i]
 	)
-	text(1800, log(5001) / max(log(groupsData + 1)), labels = groups$name[i], adj = c(0, 1))
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+	text(1800, log(5001) / max(log(groupsData + 1)), labels = groupsMeta$name[i], adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
 	rasterImage(img, 1760, log(2001) / max(log(groupsData + 1)), 1790, log(2001) / max(log(groupsData + 1)) + scale)
 }
 # dev.off()
 
-# approximate data by function of two/three parameters
-# a) technical ability to describe, cutpoint with y-axis
-# b) estimated number of species in group, upper limit
-# c) estimated effort/1/easiness of discovery invested in group ->
-# effort or easiness of discovery cannot be distinguished from curves,
-# they can only be inferred from external data, like number of researchers known to work on
-# a specific group, or, as a proxy of interest, occurrence in popular literature
+# 4 Approximate distribution of description dates using functions##################################
+nextScript <- NULL
+
+# load in libraries
+library(data.table) # handle large datasets
+library(rethinking) # approximate description times with functions
+
+# clear workspace
+rm(list = ls())
+
+# set working directory
+setwd(paste0(.brd, "taxon description dates"))
+
+# get data
+groupsMeta <- fread("groupsMeta.txt")
+groupsData <- fread("groupsData.txt")
+groupsVec <- seq_len(nrow(groupsMeta)) # create a convenience vector to process all groups
+
+# The data should be approximated by a function of two/three parameters, which could be:
+# (1) technical ability to describe (i.e. some very small species), cutpoint with y-axis
+# (2) estimated number of species in group, upper limit
+# (3) estimated effort/(1/easiness) of discovery invested in group
+# Effort or easiness of discovery cannot be distinguished from curves, they can only be
+# inferred from external data, like number of researchers known to work on a specific group,
+# or, as a proxy of interest, occurrence in popular literature.
+
+parBackup <- par() # save graphics parameters for multiple trials
 
 # function to draw cumulative descriptions
 drawit <- function() {
@@ -1180,7 +1205,7 @@ drawit <- function() {
 	axis(2)
 	axis(1, at = c(1800, 1900, 2000))
 	for (i in groupsVec) {
-		lines(groupsData$year, cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), col = groups$col[i])
+		lines(groupsData$year, cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), col = groupsMeta$col[i])
 	}
 }
 
@@ -1224,7 +1249,7 @@ for (i in seq(0.014, 0.02, l = 10)) {
 
 # modelling
 
-# test Bayesian models with dinosaurs data
+# test Bayesian models with dinosaurs data using the functions used with the dinosaur example
 
 # prepare data
 # dinosaurs
@@ -1346,11 +1371,10 @@ for (i in 1:3) {
 # dev.off()
 # save(list=c("m1a","m1b","m1c","m4a","m4b","m4c"),file="models1.RData")
 
-# the algorithm works. there may be some issues wit details that have to be addressed, but overall,
-# this method can be implemented.
-# the third model matches the data very well. it only predicts a large number of species
-# to be described over the next hundred years, but this may not be a big issue at the moment
-# it may well be impossible to model this without extra assumptions.
+# The algorithm works. There may be some issues wit details that have to be addressed, but overall,
+# this method can be implemented. The third model matches the data very well. It only predicts
+# a large number of species to be described over the next hundred years, but this may not be a
+# big issue at the moment. It may well be impossible to model this without extra assumptions.
 
 # try different functions for prediction
 
@@ -1431,10 +1455,9 @@ for (i in 1:3) {
 # dev.off()
 # save(list=c("m1c","m2c","m3c"),file="models2.RData")
 
-# all three approximations work nicely with this first trial
-# however, there are issues with the the values of the priors
-# do not forget that exponential(1) specifies the exponential distribution,
-# smaller values flatten it, larger ones make it tighter
+# All three approximations work nicely with this first trial. However, there are issues
+# with the the values of the priors. Do not forget that exponential(1) specifies the
+# exponential distribution, smaller values flatten it, larger ones make it tighter.
 
 # create Bayesian models for all groups
 
@@ -1460,9 +1483,9 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # i <- 5
 ## custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
 # m$m1 <- list()
-# for (i in seq_len(nrow(groups))) {
+# for (i in groupsVec) {
 # for (i in which(coefs[[1]][1,]>6)) {
-# 	print(paste0("Bertalanffy model ", i, "/", nrow(groups)))
+# 	print(paste0("Bertalanffy model ", i, "/", nrow(groupsMeta)))
 # 	datn <- list(
 # 		Y = groupsData$year - min(groupsData$year),
 # 		D = cumsum(groupsData[[i + 1]]) / max(cumsum(groupsData[[i + 1]]))
@@ -1484,8 +1507,8 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # coefs[[1]] <- sapply(m$m1, coef)
 ## normal distribution function: f(x) = k * 1 / ((2 * pi)^0.5 * a) * exp(-0.5 * ((x - b) / a)^2)
 # m$m2 <- list()
-# for (i in seq_len(nrow(groups))) {
-# 	print(paste0("Normal model ", i, "/", nrow(groups)))
+# for (i in groupsVec) {
+# 	print(paste0("Normal model ", i, "/", nrow(groupsMeta)))
 # 	datn <- list(
 # 		Y = groupsData$year - min(groupsData$year),
 # 		D = cumsum(groupsData[[i + 1]]) / max(cumsum(groupsData[[i + 1]]))
@@ -1512,8 +1535,8 @@ for (i in seq(0.1, 0.5, l = 5)) {
 #
 ## Gompertz function: f(x) = k * exp(-a * exp(-b * x))
 # m$m3 <- list()
-# for (i in seq_len(nrow(groups))) {
-# 	print(paste0("Gompertz model ", i, "/", nrow(groups)))
+# for (i in groupsVec) {
+# 	print(paste0("Gompertz model ", i, "/", nrow(groupsMeta)))
 # 	datn <- list(
 # 		Y = groupsData$year - min(groupsData$year),
 # 		D = cumsum(groupsData[[i + 1]]) / max(cumsum(groupsData[[i + 1]]))
@@ -1541,9 +1564,15 @@ load("models3.RData")
 # - year of predicted asymptote/maximum
 # - approximation quality
 
+# plot description history
+polyYear <- c(groupsData$year, rev(groupsData$year))
+zeros <- rep(0, nrow(groupsData))
+
 i <- 7
 par(parBackup)
-# pdf("description history fits.pdf", width = 11.7, height = 8.3)
+pdf("description history fits.pdf", width = 11.7, height = 8.3)
+# plot all groups separately with all approximation functions
+xseq <- seq(from = 0, to = max(groupsData$year) - min(groupsData$year), len = 50)
 for (i in groupsVec) {
 	plot(NULL,
 		xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n",
@@ -1554,13 +1583,12 @@ for (i in groupsVec) {
 	axis(2)
 	axis(1, at = c(1800, 1900, 2000))
 	polygon(polyYear, c(cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), zeros),
-		border = NA, col = groups$col[i]
+		border = NA, col = groupsMeta$col[i]
 	)
-	text(1800, log(5001) / max(log(groupsData + 1)), labels = groups$name[i], adj = c(0, 1))
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+	text(1800, log(5001) / max(log(groupsData + 1)), labels = groupsMeta$name[i], adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
 	rasterImage(img, 1760, log(2001) / max(log(groupsData + 1)), 1790, log(2001) / max(log(groupsData + 1)) + scale)
-	xseq <- seq(from = 0, to = max(groupsData$year) - min(groupsData$year), len = 50)
 	for (j in 1:3) {
 		if (j != 2) {
 			mu <- link(m[[j]][[i]], data = list(Y = xseq))
@@ -1576,8 +1604,35 @@ for (i in groupsVec) {
 		lwd = 3, col = 2:4, bg = "white"
 	)
 }
-# dev.off()
-# save("coefs", file = "coefs models3.RData")
+# plot all on one page only showing the normal distribution approximation
+par(oma = c(5, 5, 1, 1))
+par(mar = c(0, 0, 0, 0))
+par(mfrow = c(5, 10))
+for (i in groupsVec) {
+	plot(NULL, xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n")
+	abline(h = c(0.2, 0.4, 0.6, 0.8), lty = 3)
+	abline(v = c(1800, 1900, 2000), lty = 3)
+	if ((i - 1) %% 10 < 1) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1))
+	if (i > 37) axis(1, at = c(1800, 1900, 2000))
+	polygon(polyYear, c(cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), zeros),
+		border = NA, col = groupsMeta$col[i]
+	)
+	text(1800, log(5001) / max(log(groupsData + 1)), labels = groupsMeta$name[i], adj = c(0, 1))
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
+	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
+	rasterImage(img, 1760, log(2001) / max(log(groupsData + 1)), 1790, log(2001) / max(log(groupsData + 1)) + scale)
+	# for normal distributions, it was necessary to scale the year variable to get good results
+	mu <- link(m[[2]][[i]], data = list(Y = standardize(xseq)))
+	if (groupsMeta$col[i] %in% c("brown", "red")) {
+		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "black")
+	} else {
+		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "red")
+	}
+	shade(apply(mu, 2, PI), xseq, col = j + 1)
+}
+mtext("year", 1, 3, at = 1450)
+mtext("cumulative descriptions", 2, 52.5, at = 2.7, xpd = TRUE)
+dev.off()
 
 # interpret coefficients
 
@@ -1653,7 +1708,7 @@ calcG <- function(k, a, b, x) {
 
 # extract response variables
 funNames <- c("Betalanffy", "normal", "Gompertz")
-funCoefs <- data.table(group = groups$name)
+funCoefs <- data.table(group = groupsMeta$name)
 vars <- c("estFutureDesc", "tenPercDesc", "maxDescPace", "descVar")
 # estimated future descriptions relative to current descriptions
 for (i in seq_along(funNames)) {
@@ -1744,9 +1799,11 @@ for (i in seq_along(funNames)) {
 	colnames(funCoefs)[ncol(funCoefs)] <- paste0(vars[4], "_", funNames[i])
 }
 selCols <- colnames(funCoefs)[grepl("normal", colnames(funCoefs))]
-groups <- cbind(groups, funCoefs[, ..selCols])
-colnames(groups) <- sub("_normal", "", colnames(groups))
-fwrite(groups, file = "groups.txt")
+groupsResponses <- cbind(groupsMeta, funCoefs[, ..selCols])
+colnames(groupsResponses) <- sub("_normal", "", colnames(groupsResponses))
+rmCols <- c("file", "color", "finalAuthorData")
+groupsResponses[, (rmCols) := NULL]
+fwrite(groupsResponses, file = "groupsResponses.txt")
 
 # show estimates of response variables extracted from curves
 
@@ -1765,7 +1822,7 @@ for (i in seq_along(funNames)) {
 	abline(v = seq(0, 500000, 50000), lty = 3)
 	if (max(yVals) < 10) abline(h = seq(0, max(yVals + 1)), lty = 3) else abline(h = seq(0, max(yVals + 1), 5), lty = 3)
 	text(colSums(groupsData)[-1], funCoefs[[which(colnames(funCoefs) == paste0(vars[1], "_", funNames[i]))]],
-		label = 1:47, col = groups$color, cex = 0.9
+		label = 1:47, col = groupsMeta$color, cex = 0.9
 	)
 	mtext(funNames[i], 3, 3, font = 2)
 	if (i == 2) mtext("estimated future descriptions / current descriptions", 3, 1, font = 2, cex = 0.9)
@@ -1781,7 +1838,7 @@ for (i in seq_along(funNames)) {
 	abline(v = seq(0, 500000, 50000), lty = 3)
 	abline(h = seq(0, 300, 20), lty = 3)
 	text(colSums(groupsData)[-1], funCoefs[[which(colnames(funCoefs) == paste0(vars[2], "_", funNames[i]))]],
-		label = 1:47, col = groups$color, cex = 0.9
+		label = 1:47, col = groupsMeta$color, cex = 0.9
 	)
 	if (i == 2) mtext("years until 10% of current descriptions made", 3, 1, font = 2, cex = 0.9)
 }
@@ -1797,7 +1854,7 @@ for (i in seq_along(funNames)) {
 	abline(v = seq(0, 500000, 50000), lty = 3)
 	if (max(yVals) > 150000) abline(h = seq(0, 500000, 50000), lty = 3) else abline(h = seq(0, 500000, 20000), lty = 3)
 	text(colSums(groupsData)[-1], funCoefs[[which(colnames(funCoefs) == paste0(vars[3], "_", funNames[i]))]],
-		label = 1:47, col = groups$color, cex = 0.9
+		label = 1:47, col = groupsMeta$color, cex = 0.9
 	)
 	if (i == 2) mtext("maximum descriptions pace", 3, 1, font = 2, cex = 0.9)
 }
@@ -1811,7 +1868,7 @@ for (i in seq_along(funNames)) {
 	abline(v = seq(0, 500000, 50000), lty = 3)
 	abline(h = seq(0, 2, 0.1), lty = 3)
 	text(colSums(groupsData)[-1], funCoefs[[which(colnames(funCoefs) == paste0(vars[4], "_", funNames[i]))]],
-		label = 1:47, col = groups$color, cex = 0.9
+		label = 1:47, col = groupsMeta$color, cex = 0.9
 	)
 	if (i == 2) mtext("sum of squares (estimates - measurements)", 3, 1, font = 2, cex = 0.9)
 }
@@ -1819,31 +1876,32 @@ for (i in seq_along(funNames)) {
 
 # nicer display of the above
 # pdf("testDisplay.pdf")
-# b1 <- barplot(coefs[[1]][1, ], col = groups$color, border = NA, horiz = TRUE, space = 0.5)
+# b1 <- barplot(coefs[[1]][1, ], col = groupsMeta$color, border = NA, horiz = TRUE, space = 0.5)
 # i <- 1
 # for (i in seq_len(ncol(coefs[[1]]))) {
-# 	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
+# 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 # 	scale <- max(coefs[[1]][1, ]) / max(b1)
-# 	colRGB <- col2rgb(groups$color[i]) / 255
+# 	colRGB <- col2rgb(groupsMeta$color[i]) / 255
 # 	for (j in 1:3) img[, , j] <- colRGB[[j]]
 # 	rasterImage(img, coefs[[1]][1, i] + 0.5, b1[i] - 1, scale * 2 + coefs[[1]][1, i] + 0.5, b1[i] + 1, xpd = TRUE)
 # }
 # dev.off()
 
 # plot numbers and groups
-# pdf("numbers and groups2.pdf", width = 8.3, height = 11.7)
-plot(NULL, xlim = c(0, 5), ylim = c(0, 47), xlab = "", ylab = "")
-for (i in seq_len(nrow(groups))) {
-	img <- readPNG(paste0("group icons/", groups$name[i], ".png"))
-	colRGB <- col2rgb(groups$color[i]) / 255
+par(parBackup)
+# pdf("numbers and groups.pdf")
+plot(NULL, xlim = c(0, 5), ylim = c(0, 47), xlab = "", ylab = "", xaxt = "n", yaxt = "n")
+for (i in groupsVec) {
+	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
+	colRGB <- col2rgb(groupsMeta$color[i]) / 255
 	for (j in 1:3) img[, , j] <- colRGB[[j]]
-	rasterImage(img, 1.4, i - 1, 1.6, i)
-	text(2, i - 0.5, groups$name[i], adj = 0, col = groups$color[i])
-	text(1, i - 0.5, i, col = groups$color[i])
+	rasterImage(img, 1.452, i - 1, 1.55, i)
+	text(2, i - 0.5, groupsMeta$name[i], adj = 0, col = groupsMeta$color[i], cex = 0.7)
+	text(1, i - 0.5, i, col = groupsMeta$color[i], cex = 0.7)
 }
 # dev.off()
 
-# 4 Distribution data compilation from GBIF########################################################
+# 5 Source distribution data from GBIF#############################################################
 nextScript <- NULL
 
 # load in libraries
@@ -1857,28 +1915,28 @@ rm(list = ls())
 # set working directory
 setwd(paste0(.brd, "taxon description dates"))
 
-groups <- fread("groups.txt")
+# get data
 groupsData <- fread("groupsData.txt")
 
-# GBIFTaxonKeys <- rep(NA,ncol(groupsData)-1)
-# for (i in seq_along(GBIFTaxonKeys)){
+# groupsGBIFTaxonKeys <- rep(NA,ncol(groupsData)-1)
+# for (i in seq_along(groupsGBIFTaxonKeys)){
 # 	res <- fromJSON(paste0("https://api.gbif.org/v1/species/match?name=",
 # colnames(groupsData)[i + 1],"&strict=TRUE&verbose=TRUE"))
 # 	if ("usageKey" %in% names(res) && res$matchType=="EXACT"){
-# 		GBIFTaxonKeys[i] <- res$usageKey
+# 		groupsGBIFTaxonKeys[i] <- res$usageKey
 # 	} else {
 # 		if ("alternatives" %in% names(res)){
 # 			res <- res$alternatives
 # 			for (j in seq_along(res)) print(unlist(res[[j]]))
 # 			myNum <- as.numeric(readline(prompt = "Which one?"))
-# 			GBIFTaxonKeys[i] <- res[[myNum]]$usageKey
+# 			groupsGBIFTaxonKeys[i] <- res[[myNum]]$usageKey
 # 		}
 # 	}
 # }
 ## four problematic keys: Plecoptera gets Insecta key, Ectoprocta not found, Myriapoda not found, Crustacea is insect taxon
-# GBIFTaxonKeys[which(colnames(groupsData) == "Crustacea") - 1] <- NA
-# GBIFTaxonKeys[which(colnames(groupsData) == "Ectoprocta") - 1] <- 53 # Bryozoa == Ectoprocta
-# GBIFTaxonKeys[which(colnames(groupsData) == "Plecoptera") - 1] <- 787 # alternative
+# groupsGBIFTaxonKeys[which(colnames(groupsData) == "Crustacea") - 1] <- NA
+# groupsGBIFTaxonKeys[which(colnames(groupsData) == "Ectoprocta") - 1] <- 53 # Bryozoa == Ectoprocta
+# groupsGBIFTaxonKeys[which(colnames(groupsData) == "Plecoptera") - 1] <- 787 # alternative
 ## Myriapoda is not acknowledged as a group
 myriapods <- c("Chilopoda", "Symphyla", "Pauropoda", "Diplopoda")
 ## Crustacea not acknowledged as a group
@@ -1888,10 +1946,10 @@ crustaceans <- c("Malacostraca", "Copepoda", "Ostracoda", "Branchiopoda", "Maxil
 # for (i in seq_along(newNames)){
 # 	newKeys[i] <- fromJSON(paste0("https://api.gbif.org/v1/species/match?name=",newNames[i],"&strict=TRUE&verbose=TRUE"))$usageKey
 # }
-# GBIFTaxonKeys <- c(GBIFTaxonKeys,newKeys)
-# names(GBIFTaxonKeys) <- c(colnames(groupsData)[-1],myriapods,crustaceans)
-# save(GBIFTaxonKeys, file ="GBIFTaxonKeys.RData")
-load("GBIFTaxonKeys.RData")
+# groupsGBIFTaxonKeys <- c(groupsGBIFTaxonKeys,newKeys)
+# names(groupsGBIFTaxonKeys) <- c(colnames(groupsData)[-1],myriapods,crustaceans)
+# save(groupsGBIFTaxonKeys, file ="groupsGBIFTaxonKeys.RData")
+load("groupsGBIFTaxonKeys.RData")
 
 continents <- c("africa", "antarctica", "asia", "europe", "north_america", "oceania", "south_america")
 
@@ -1992,19 +2050,28 @@ resSpecsTable[, world := temp]
 # calculate ratio
 resSpecsTable <- resSpecsTable[!name %in% c(myriapods, crustaceans)]
 resSpecsTable[, ratio := europe_north_america / world]
+
+# check ratios across groups
 setorder(resSpecsTable, "ratio")
 resSpecsTable[, c("name", "ratio")]
 hist(resSpecsTable$ratio)
+
+# reorder table
+resSpecsTable[, oriOrder := sapply(resSpecsTable$name, function(x) which(colnames(groupsData) == x)) - 1]
+setorder(resSpecsTable, "oriOrder")
+
 # check whether total numbers match LifeGate
-# could be higher, if taxa occur in more than one continent, and lower, if taxa
-# have no occurrence data
+# could be higher, if taxa occur in more than one continent, and lower,
+# if taxa have no occurrence data
 plot(resSpecsTable$world ~ colSums(groupsData[, -"year"]), xlab = "LifeGate total species numbers", ylab = "GBIF total species numbers", col = "white")
 names(GBIFTaxonKeys)
 abline(0, 1)
 text(colSums(groupsData[, -"year"]), resSpecsTable$world, seq_len(nrow(resSpecsTable)))
-fwrite(resSpecsTable, "GBIF species found per region.txt")
 
-# 5 Check body size data from Ulrich Brose's lab###################################################
+# write data
+fwrite(resSpecsTable, "groupsOccurrences.txt")
+
+# 6 Source body size data from Ulrich Brose's lab##################################################
 nextScript <- NULL
 
 # load in libraries
@@ -2023,7 +2090,8 @@ source("taxonomy help functions.R")
 # set working directory
 setwd(paste0(.brd, "taxon description dates"))
 
-groups <- fread("groups.txt")
+# read in data
+groupsMeta <- fread("groupsMeta.txt")
 
 b1 <- fread("bodysizes.txt", sep = "\t", fill = TRUE)
 b2 <- fread("bodysizes_2008.txt")
@@ -2237,7 +2305,7 @@ selCols <- c("order", "class", "phylum")
 namesDict[, (selCols) := lapply(.SD, function(x) {
 	x[!is.na(x)] <- paste0(toupper(substr(x[!is.na(x)], 1, 1)), sub("^.", "", x[!is.na(x)]))
 }), .SDcols = (selCols)]
-shortNames <- groups$name
+shortNames <- groupsMeta$name
 myriapods <- c("Chilopoda", "Symphyla", "Pauropoda", "Diplopoda")
 crustaceans <- c("Malacostraca", "Copepoda", "Ostracoda", "Branchiopoda", "Maxillopoda", "Cephalocarida", "Remipedia")
 namesDict[, nameShort := character()]
@@ -2289,9 +2357,9 @@ for (i in seq_len(nrow(datSummary))) {
 		}
 	}
 }
-fwrite(datSummary, file = "Brose body length and size.txt")
+fwrite(datSummary, file = "groupsLengthSize.txt")
 
-# 6 Source data from BiL explorer##################################################################
+# 7 Source data from BiL explorer##################################################################
 nextScript <- NULL
 
 # load in libraries
@@ -2312,7 +2380,7 @@ source("taxonomy help functions.R")
 setwd(paste0(.brd, "taxon description dates"))
 
 # get groups
-groups <- fread("groups.txt")
+groupsMeta <- fread("groupsMeta.txt")
 
 # get target names
 names <- fread("unique-taxons.csv")
@@ -2466,7 +2534,7 @@ resRange <- range(which(rowSums(resTable[, -"year"], na.rm = TRUE) > 0))
 resTable <- resTable[resRange[1]:resRange[2]]
 range(resTable$year)
 
-fwrite(resTable, file = "BiL names occurrences.txt")
+fwrite(resTable, file = "groupsLitOccurrences.txt")
 
 trials <- 3
 # do taxonomic classification using term variable
@@ -2611,17 +2679,16 @@ names <- cbind(names, resTax)
 names <- cbind(names, resVern)
 colnames(resTax <- sub("resTax_", "", colnames(resTax)))
 colnames(resVern <- sub("resVern_", "", colnames(resVern)))
-groups[, nameShort := sub(".* ", "", name)]
 
 # check which group names can be found in the rows of the data
-res <- matrix(NA, nrow = nrow(names), ncol = nrow(groups))
-for (i in seq_len(nrow(groups))) {
+res <- matrix(NA, nrow = nrow(names), ncol = nrow(groupsMeta))
+for (i in seq_len(nrow(groupsMeta))) {
 	for (j in seq_len(nrow(names))) {
-		res[j, i] <- tolower(groups$nameShort[i]) %in% tolower(names[j])
+		res[j, i] <- tolower(groupsMeta$name[i]) %in% tolower(names[j])
 	}
 }
 res <- data.table(res)
-colnames(res) <- groups$nameShort
+colnames(res) <- groupsMeta$name
 res[, occId := names$occId]
 checkSums <- rowSums(res[, -"occId"])
 names[
@@ -2643,11 +2710,11 @@ for (i in seq_along(probs)) {
 		dCols <- colnames(names)[!is.na(names[probs[i]])]
 		print(names[probs[i], ..dCols])
 		if (checkSums[probs[i]] < 1) {
-			print(groups$nameShort)
+			print(groupsMeta$name)
 			browseURL(paste0("https://en.wikipedia.org/wiki/", names$occId[probs[i]]), browser = NULL)
 			myNum <- as.numeric(readline(prompt = "Select number: "))
 			if (myNum %in% seq_along(groups$nameShort)) {
-				names[probs[i], group := groups$nameShort[myNum]]
+				names[probs[i], group := groupsMeta$name[myNum]]
 			} else if (myNum == 0) {
 				names[probs[i], group := ""]
 			}
@@ -2675,9 +2742,9 @@ names[!is.na(resGroup), group := resGroup[!is.na(resGroup)]]
 # check unclassified records
 names[group == ""]
 
-fwrite(names, file = "BiL names taxonomy.txt")
+fwrite(names, file = "groupsLitTaxonomy.txt")
 
-# 7 Alternative measure of public interest#########################################################
+# 8 Source measure of public interest based on Wikipedia article lengths and Google hits###########
 nextScript <- NULL
 
 # load in libraries
@@ -2693,9 +2760,7 @@ setwd(paste0(.brd, "taxon description dates"))
 # read in data
 
 # groups metadata and response variables
-groups <- fread("groups.txt")
-
-groups[, nameShort := sub(".* ", "", name)]
+groupsMeta <- fread("groupsMeta.txt")
 
 # close all open ports
 try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
@@ -2703,14 +2768,14 @@ try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), s
 rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
 remDr <- rD[["client"]]
 
-res <- data.table(name = groups$nameShort, gLines = numeric(), wLines = numeric())
+res <- data.table(name = groupsMeta$name, gLines = numeric(), wLines = numeric())
 i <- 1
-for (i in seq_len(nrow(groups))) {
-	remDr$navigate(paste0("https://www.google.com/search?client=firefox-b-d&q=", groups$nameShort[i]))
+for (i in seq_len(nrow(groupsMeta))) {
+	remDr$navigate(paste0("https://www.google.com/search?client=firefox-b-d&q=", groupsMeta$name[i]))
 	gHit <- remDr$findElement(using = "id", value = "result-stats")
 	gHit <- as.numeric(gsub("\\D", "", sub(" Ergebnisse.*", "", gHit$getElementAttribute("innerHTML")[[1]])))
 	res[i, gHits := gHit]
-	remDr$navigate(paste0("https://en.wikipedia.org/wiki/", groups$nameShort[i]))
+	remDr$navigate(paste0("https://en.wikipedia.org/wiki/", groupsMeta$name[i]))
 	wLine <- remDr$findElement(using = "css", value = "html")
 	wLine <- wLine$getElementAttribute("innerHTML")[[1]]
 	wLine <- length(strsplit(wLine, split = "\n")[[1]])
@@ -2721,9 +2786,9 @@ for (i in seq_len(nrow(groups))) {
 # close all open ports
 try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
 
-fwrite(res, "Google and Wikipedia public interest data.txt")
+fwrite(res, "groupsWebOccurrences.txt")
 
-# 8 Combine data from different sources############################################################
+# 9 Analyse taxon description data#################################################################
 nextScript <- NULL
 
 # load in libraries
@@ -2748,25 +2813,26 @@ setwd(paste0(.brd, "taxon description dates"))
 # read in data
 
 # groups metadata and response variables
-groups <- fread("groups.txt")
+groupsMeta <- fread("groupsMeta.txt")
+groupsResponses <- fread("groupsResponses.txt")
 groupsData <- fread("groupsData.txt")
 groupsTotal <- colSums(groupsData[, -"year"])
 
 # groups size classification, soil/endoparasitic vs free/non-parasitic, aquatic vs terrestrial
-size <- data.table(read.xlsx("groups.xlsx", sep.names = "_"))
+size <- data.table(read.xlsx("groupsPredictors.xlsx", sep.names = "_"))
 
 # alternative group sizes from Brose et al.
-sizeB <- fread("Brose body length and size.txt")
+sizeB <- fread("groupsLengthSize.txt")
 
 # groups occurrence records
-regions <- fread("GBIF species found per region.txt")
+regions <- fread("groupsOccurrences.txt")
 
 # public interest data from BiL
-interestOcc <- fread("BiL names occurrences.txt")
-interestTax <- fread("BiL names taxonomy.txt")
+interestOcc <- fread("groupsLitOccurrences.txt")
+interestTax <- fread("groupsLitTaxonomy.txt")
 
 # public interest alternative sources
-interest <- fread("Google and Wikipedia public interest data.txt")
+interest <- fread("groupsWebOccurrences.txt") # will include other interest data later on
 
 # author numbers (although over time, no totals)
 authors <- fread("authorData.txt")
@@ -2782,7 +2848,7 @@ rm(sizeB)
 colnames(size) <- gsub("\\([^\\(\\)]+\\)", "", colnames(size))
 colnames(size) <- gsub("^_|_$", "", gsub("_{2,}", "_", colnames(size)))
 
-# prefer data from wikipedia because it is more complete and not (as) prone to sampling bias
+# use data from Wikipedia because it is more complete and not (as) prone to sampling bias
 # as Brose's data
 
 # compare public interest data
@@ -2795,11 +2861,14 @@ litOccs <- litOccs[names(litOccs) != ""]
 interest[, litOcc := 0]
 interest[sapply(names(litOccs), function(x) which(interest$name == x)), litOcc := litOccs]
 plot(interest[, -"name"])
+plot(interest$gHits, interest$litOcc)
+plot(interest$gHits, log(interest$litOcc))
+
 # Google hits and log(literature occurrences) show similar patterns,
 # while wikipedia lines do not
 interest[, wLines := NULL]
 
-# check author numbers from Martin
+# check author numbers from LifeGate
 colSums(authors[, -"year"])
 par(mfrow = c(1, 1))
 plot(NULL, xlim = range(authors$year), ylim = range(authors[, -"year"]), xlab = "year", ylab = "authors")
@@ -2857,19 +2926,16 @@ colSums(authors[, -"year"])
 # IPNI also has some bad data included and may therefore be too high, and author numbers for mosses are too low
 # anyway, as this would only result in a linear transformation of the data, it is not needed
 
-# create a common data.frame
+# create a common data.table
 dat <- data.table(
-	name = groups$name,
-	estFutureDesc = groups$estFutureDesc,
-	tenPercDesc = groups$tenPercDesc,
-	maxDescPace = groups$maxDescPace,
-	descVar = groups$descVar,
+	name = groupsResponses$name,
+	currDesc = groupsTotal,
 	meanAuthors = authorMeans,
 	varAuthors = authorVar,
 	cvAuthors = authorCv,
-	authorFinal = groups$finalAuthorData,
-	gHits = interest$gHits,
+	authorFinal = groupsMeta$finalAuthorData,
 	litOcc = interest$litOcc,
+	gHits = interest$gHits,
 	lengthMin = size$min_body_length,
 	lengthMax = size$max_body_length,
 	lengthMedian = size$median_body_length,
@@ -2877,9 +2943,14 @@ dat <- data.table(
 	soilEndo = size$`not_soil-dwelling_or_endoparasitic_-_soil-dwelling_or_endoparasitic`,
 	aqua = size$`terrestrial_-_aquatic`,
 	occIn = regions$ratio,
-	currDesc = groupsTotal
+	estFutureDesc = groupsResponses$estFutureDesc,
+	tenPercDesc = groupsResponses$tenPercDesc,
+	maxDescPace = groupsResponses$maxDescPace,
+	descVar = groupsResponses$descVar
 )
 dat[, c("name", "currDesc")]
+
+fwrite(dat, file = "groupsVariables.txt")
 
 # compare mean author numbers and total number of species
 # pdf("mean authors per year vs total description number.pdf", height=8.3,width=11.7)
@@ -2904,7 +2975,8 @@ text(dat$currDesc, dat$meanAuthors, dat$name,
 )
 abline(lm(dat$meanAuthors ~ dat$currDesc + 0), col = "grey")
 # dev.off()
-# plants have much more authors per species than other groups, i.e. less descriptions per author
+# Plants have much more authors per species than other groups,
+# i.e. less descriptions per author.
 
 # Data analysis
 
@@ -2953,7 +3025,7 @@ for (i in seq_len(ncol(dat))) {
 		for (j in seq_len(ncol(dat))) {
 			if (is.numeric(dat[[j]]) && i != j) {
 				plot(NULL, xlim = range(dat[[j]]), ylim = range(dat[[i]]), xlab = colnames(dat)[j], ylab = colnames(dat)[i])
-				text(dat[[j]], dat[[i]], labels = dat$name, cex = .75, col = groups$color)
+				text(dat[[j]], dat[[i]], labels = dat$name, cex = .75, col = groupsMeta$color)
 				points(dat[[j]], dat[[i]], cex = .75)
 			}
 		}
@@ -2988,33 +3060,33 @@ reg <- lm(descVar ~ meanAuthors, data = dat)
 summary(reg) # no relationship
 plot(descVar ~ meanAuthors, data = dat, main = paste0("R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
 abline(reg, col = "red", lwd = 2)
-abline(v=seq(0, 300, 10), col="grey", lty=2)
-# no correlation, but a clear trend of high variability in description variance 
+abline(v = seq(0, 300, 10), col = "grey", lty = 2)
+# no correlation, but a clear trend of high variability in description variance
 # at small mean author numbers and lower variability at large mean author numbers
-plot(abs(resid(reg))~fitted(reg))
+plot(abs(resid(reg)) ~ fitted(reg))
 # try weighted regression to account for heteroskedasticity
-weights <- 1/resid(reg)^2
-regW <- lm(descVar ~ meanAuthors, weight=weights, data = dat)
+weights <- 1 / resid(reg)^2
+regW <- lm(descVar ~ meanAuthors, weight = weights, data = dat)
 summary(regW) # looks good
 par(mfrow = c(2, 2))
 plot(descVar ~ meanAuthors, data = dat, main = paste0("Unweighted R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
 abline(reg, col = "red", lwd = 2)
 plot(descVar ~ meanAuthors, data = dat, main = paste0("Weighted R\xc2\xb2 = ", round(summary(regW)$adj.r.squared, 2)))
 abline(regW, col = "red", lwd = 2)
-plot(abs(resid(reg))~fitted(reg))
-plot(abs(I(resid(regW)*weights))~fitted(regW))
+plot(abs(resid(reg)) ~ fitted(reg))
+plot(abs(I(resid(regW) * weights)) ~ fitted(regW))
 
 # maximum description pace ~ author number + endoparasitic/soil-dwelling or not + aquatic or not
 # reason -> body length + occurrences are no longer a limitation these days
-par(mfrow=c(1,1))
-dat[, maxDescPace := maxDescPace/colSums(groupsData)[-1]]
-plot(maxDescPace ~ I(maxDescPace * colSums(groupsData)[-1]),data=dat)
+par(mfrow = c(1, 1))
+dat[, maxDescPace := maxDescPace / colSums(groupsData)[-1]]
+plot(maxDescPace ~ I(maxDescPace * colSums(groupsData)[-1]), data = dat)
 text(I(dat$maxDescPace * colSums(groupsData)[-1]), dat$maxDescPace, labels = dat$name, cex = .75, col = groups$color)
 # it might be more interesting to investigate the relative description pace
 # instead of the absolute description pace. the absolute one is just related
 # to the number of authors
 plot(colSums(groupsData)[-1] ~ dat$meanAuthors)
-text(dat$meanAuthors, colSums(groupsData)[-1] , labels = dat$name, cex = .75, col = groups$color)
+text(dat$meanAuthors, colSums(groupsData)[-1], labels = dat$name, cex = .75, col = groups$color)
 reg <- lm(maxDescPace ~ tenPercDesc, data = dat)
 summary(reg)
 reg <- lm(maxDescPace ~ tenPercDesc + soilEndo + aqua, data = dat)
@@ -3022,15 +3094,15 @@ summary(reg)
 reg <- lm(maxDescPace ~ tenPercDesc + aqua, data = dat)
 summary(reg)
 # it looks as if nothing can be learned from soildwelling/endoparasitic
-par(mfrow=c(2,3))
+par(mfrow = c(2, 3))
 plot(tenPercDesc ~ meanAuthors, data = dat)
 plot(maxDescPace ~ aqua, data = dat)
 plot(maxDescPace ~ lengthMedian, data = dat)
 plot(maxDescPace ~ lengthMin, data = dat)
 plot(maxDescPace ~ lengthMax, data = dat)
 summary(lm(maxDescPace ~ meanAuthors, data = dat))
-summary(lm(tenPercDesc ~ meanAuthors + lengthMedian , data = dat))
-# there seems to hardly be an answer on the maxDescPace, 
+summary(lm(tenPercDesc ~ meanAuthors + lengthMedian, data = dat))
+# there seems to hardly be an answer on the maxDescPace,
 # if it is not taken to be the absolute value
 
 # ten percent of current descriptions ~ author number + body length + occurrences +
@@ -3044,197 +3116,197 @@ summary(lm(tenPercDesc ~ meanAuthors + lengthMedian + occIn + I(log(aqua)), data
 
 summary(lm(estFutureDesc ~ maxDescPace, data = dat))
 
-# concept figure (true diversity is unknown, could be modelled as latent variable)
-# 
-# see manuscripts/taxon description dates/path diagram.pptx
+# Concept figure (true diversity is unknown, could be modelled as latent variable)
+#
+# See manuscripts/taxon description dates/path diagram.pptx
 
-# realize in a Bayesian framework
+# Analyse in a Bayesian framework
 str(dat)
 
 # create scaled dataset
 dats <- copy(dat)
-numCols <- colnames(dats)[sapply(dats,is.numeric)]
+numCols <- colnames(dats)[sapply(dats, is.numeric)]
 dats[, (numCols) := lapply(.SD, scale), .SDcols = (numCols)]
 str(dats)
-round(cor(dats[,-c("name")]),2)
+round(cor(dats[, -c("name")]), 2)
 
-# create a dataset with short names
+# create short name dataset
 datn <- data.table(
-		C = dats$currDesc,
-		L = dats$litOcc,
-		A = dats$meanAuthors,
-		DV = dats$descVar,
-		O = dats$occIn,
-		B = dats$lengthMedian, # body size
-		TT = dats$tenPercDesc, # time until ten percent
-		MP = dats$maxDescPace, # maximum description pace
-		S = dats$soilEndo,
-		AQ = dats$aqua,
-		EF = dats$estFutureDesc
+	C = dats$currDesc,
+	A = dats$meanAuthors,
+	DV = dats$descVar,
+	L = dats$litOcc,
+	B = dats$lengthMedian, # body size
+	S = dats$soilEndo,
+	AQ = dats$aqua,
+	O = dats$occIn,
+	TT = dats$tenPercDesc, # time until ten percent
+	MP = dats$maxDescPace, # maximum description pace
+	EF = dats$estFutureDesc
 )
 
 # rethinking implementation (no SEM)
 
-#reg1 <- ulam(
-#	alist(	# relationships between variables
-#		L ~ normal(alpha, rho),
-#		alpha <- a * C,
-#		A ~ normal(beta, sigma),
-#		beta <-  b * L + c * C,
-#		DV ~ normal(gamma, tau),
-#		tau <-  d * exp(-A) + e * exp(-O),
-#		TT ~ normal(delta, ypsilon),
-#		delta <- f * B + g * A + h * O + ii * S + j * AQ + k * DV,
-#		MP ~ normal(epsilon, phi),
-#		epsilon <- l * B + m * A + n * O + o * S + p * AQ + q * TT,
-#		EF ~ normal(zeta, chi),
-#		zeta <- r * TT + s * MP,
-#		# regression priors
-#		c(a, b, c, f, g, h, ii, j, k, l, m, n, o, p, q, r, s) ~ dnorm(0,1),
-#		c(d, e) ~ dexp(0.1),
-#		# variance priors
-#		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
-#	),
-#	data = datn, chains = 4, log_lik = TRUE
-#)
+# reg1 <- ulam(
+# 	alist(	# relationships between variables
+# 		L ~ normal(alpha, rho),
+# 		alpha <- a * C,
+# 		A ~ normal(beta, sigma),
+# 		beta <-  b * L + c * C,
+# 		DV ~ normal(gamma, tau),
+# 		tau <-  d * exp(-A) + e * exp(-O),
+# 		TT ~ normal(delta, ypsilon),
+# 		delta <- f * B + g * A + h * O + ii * S + j * AQ + k * DV,
+# 		MP ~ normal(epsilon, phi),
+# 		epsilon <- l * B + m * A + n * O + o * S + p * AQ + q * TT,
+# 		EF ~ normal(zeta, chi),
+# 		zeta <- r * TT + s * MP,
+# 		# regression priors
+# 		c(a, b, c, f, g, h, ii, j, k, l, m, n, o, p, q, r, s) ~ dnorm(0,1),
+# 		c(d, e) ~ dexp(0.1),
+# 		# variance priors
+# 		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
+# 	),
+# 	data = datn, chains = 4, log_lik = TRUE
+# )
 
-#(res1 <- precis(reg1,depth=2))
-#mean   sd  5.5% 94.5% rhat ess_bulk
-#s        0.70 0.12  0.51  0.89    1  2534.55
-#r        0.04 0.12 -0.13  0.23    1  2267.37
-#q        0.84 0.18  0.53  1.14    1  2081.66
-#p        0.14 0.13 -0.09  0.35    1  2611.31
-#o       -0.12 0.14 -0.35  0.11    1  2825.66
-#n       -0.18 0.16 -0.43  0.09    1  2266.67
-#m        0.14 0.14 -0.09  0.37    1  2941.90
-#l        0.42 0.17  0.14  0.68    1  1924.44
-#k       -0.38 0.09 -0.52 -0.24    1  3574.56
-#j       -0.04 0.09 -0.19  0.10    1  2791.82
-#ii       0.09 0.10 -0.07  0.26    1  2466.16
-#h        0.33 0.10  0.17  0.49    1  2292.19
-#g       -0.37 0.10 -0.52 -0.21    1  2951.02
-#f       -0.42 0.11 -0.59 -0.25    1  2287.30
-#c        0.74 0.06  0.65  0.83    1  3287.11
-#b        0.36 0.06  0.27  0.45    1  3105.01
-#a        0.35 0.14  0.13  0.57    1  3439.43
-#e        0.24 0.09  0.12  0.38    1  2825.21
-#d        0.75 0.12  0.57  0.96    1  2785.12
-#chi      0.71 0.07  0.60  0.83    1  3649.51
-#phi      0.85 0.09  0.72  1.01    1  3120.19
-#ypsilon  0.59 0.07  0.49  0.70    1  2377.10
-#gamma    0.04 0.04  0.00  0.11    1  2072.67
-#sigma    0.36 0.04  0.30  0.43    1  3460.39
-#rho      0.95 0.11  0.80  1.13    1  4173.36
-				
-#len1 <- length(res1@.Data[[1]])
-#par(mfrow=c(1,1))
-#plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="")
-#xseq <- seq(-1.5,1.5,l=500)
-#for (i in seq_len(len1)){
-#	if (nchar(res1@row.names[i]) < 3){
-#		yseq <- dnorm(xseq,res1@.Data[[1]][i],res1@.Data[[2]][i])
-#		if (res1@.Data[[3]][i] * res1@.Data[[4]][i] < 0){
-#			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len1)[i],"33"), border = "red")
-#		} else {
-#			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len1)[i],"33"), border = "dark grey")
-#		}
-#		text(res1@.Data[[1]][i], 1 / (res1@.Data[[2]][i] * sqrt(2 * pi)),res1@row.names[i])
-#	}
-#}
+# (res1 <- precis(reg1,depth=2))
+# mean   sd  5.5% 94.5% rhat ess_bulk
+# s        0.70 0.12  0.51  0.89    1  2534.55
+# r        0.04 0.12 -0.13  0.23    1  2267.37
+# q        0.84 0.18  0.53  1.14    1  2081.66
+# p        0.14 0.13 -0.09  0.35    1  2611.31
+# o       -0.12 0.14 -0.35  0.11    1  2825.66
+# n       -0.18 0.16 -0.43  0.09    1  2266.67
+# m        0.14 0.14 -0.09  0.37    1  2941.90
+# l        0.42 0.17  0.14  0.68    1  1924.44
+# k       -0.38 0.09 -0.52 -0.24    1  3574.56
+# j       -0.04 0.09 -0.19  0.10    1  2791.82
+# ii       0.09 0.10 -0.07  0.26    1  2466.16
+# h        0.33 0.10  0.17  0.49    1  2292.19
+# g       -0.37 0.10 -0.52 -0.21    1  2951.02
+# f       -0.42 0.11 -0.59 -0.25    1  2287.30
+# c        0.74 0.06  0.65  0.83    1  3287.11
+# b        0.36 0.06  0.27  0.45    1  3105.01
+# a        0.35 0.14  0.13  0.57    1  3439.43
+# e        0.24 0.09  0.12  0.38    1  2825.21
+# d        0.75 0.12  0.57  0.96    1  2785.12
+# chi      0.71 0.07  0.60  0.83    1  3649.51
+# phi      0.85 0.09  0.72  1.01    1  3120.19
+# ypsilon  0.59 0.07  0.49  0.70    1  2377.10
+# gamma    0.04 0.04  0.00  0.11    1  2072.67
+# sigma    0.36 0.04  0.30  0.43    1  3460.39
+# rho      0.95 0.11  0.80  1.13    1  4173.36
 
-#reg2 <- ulam(
-#	alist(	# relationships between variables
-#		L ~ normal(alpha, rho),
-#		alpha <- a * C,
-#		A ~ normal(beta, sigma),
-#		beta <-  b * L + c * C,
-#		DV ~ normal(gamma, tau),
-#		tau <-  d * exp(-A) + e * exp(-O),
-#		TT ~ normal(delta, ypsilon),
-#		delta <- f * B + g * A + h * O + k * DV,
-#		MP ~ normal(epsilon, phi),
-#		epsilon <- l * B + q * TT,
-#		EF ~ normal(zeta, chi),
-#		zeta <- s * MP,
-#		# regression priors
-#		c(a, b, c, f, g, h, k, l, q, s) ~ dnorm(0,1),
-#		c(d, e) ~ dexp(0.1),
-#		# variance priors
-#		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
-#	),
-#	data = datn, chains = 4, log_lik = TRUE
-#)
+# len1 <- length(res1@.Data[[1]])
+# par(mfrow=c(1,1))
+# plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="")
+# xseq <- seq(-1.5,1.5,l=500)
+# for (i in seq_len(len1)){
+# 	if (nchar(res1@row.names[i]) < 3){
+# 		yseq <- dnorm(xseq,res1@.Data[[1]][i],res1@.Data[[2]][i])
+# 		if (res1@.Data[[3]][i] * res1@.Data[[4]][i] < 0){
+# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len1)[i],"33"), border = "red")
+# 		} else {
+# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len1)[i],"33"), border = "dark grey")
+# 		}
+# 		text(res1@.Data[[1]][i], 1 / (res1@.Data[[2]][i] * sqrt(2 * pi)),res1@row.names[i])
+# 	}
+# }
 
-#(res2 <- precis(reg2,depth=2))
-#mean   sd  5.5% 94.5% rhat ess_bulk
-#s        0.72 0.11  0.56  0.89 1.01  2657.38
-#q        0.63 0.15  0.38  0.87 1.00  2242.07
-#l        0.32 0.15  0.09  0.56 1.00  1969.44
-#k       -0.38 0.09 -0.52 -0.24 1.00  1897.78
-#h        0.37 0.09  0.22  0.52 1.00  2208.08
-#g       -0.34 0.10 -0.49 -0.20 1.00  1920.52
-#f       -0.45 0.10 -0.61 -0.30 1.01  2267.86
-#c        0.74 0.06  0.65  0.83 1.00  2443.34
-#b        0.36 0.06  0.27  0.45 1.00  2162.38
-#a        0.35 0.14  0.14  0.57 1.00  2631.49
-#e        0.24 0.09  0.11  0.40 1.00  2169.46
-#d        0.74 0.13  0.56  0.96 1.00  2257.95
-#chi      0.70 0.08  0.59  0.83 1.00  2600.21
-#phi      0.86 0.09  0.72  1.03 1.00  2310.79
-#ypsilon  0.58 0.06  0.49  0.69 1.00  2160.27
-#gamma    0.04 0.04  0.00  0.12 1.00  1351.30
-#sigma    0.36 0.04  0.30  0.43 1.00  2304.37
-#rho      0.95 0.10  0.81  1.12 1.00  2476.98
+# reg2 <- ulam(
+# 	alist(	# relationships between variables
+# 		L ~ normal(alpha, rho),
+# 		alpha <- a * C,
+# 		A ~ normal(beta, sigma),
+# 		beta <-  b * L + c * C,
+# 		DV ~ normal(gamma, tau),
+# 		tau <-  d * exp(-A) + e * exp(-O),
+# 		TT ~ normal(delta, ypsilon),
+# 		delta <- f * B + g * A + h * O + k * DV,
+# 		MP ~ normal(epsilon, phi),
+# 		epsilon <- l * B + q * TT,
+# 		EF ~ normal(zeta, chi),
+# 		zeta <- s * MP,
+# 		# regression priors
+# 		c(a, b, c, f, g, h, k, l, q, s) ~ dnorm(0,1),
+# 		c(d, e) ~ dexp(0.1),
+# 		# variance priors
+# 		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
+# 	),
+# 	data = datn, chains = 4, log_lik = TRUE
+# )
 
-#len2 <- length(res2@.Data[[1]])
-#par(mfrow=c(1,1))
-#plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="")
-#xseq <- seq(-1.5,1.5,l=500)
-#for (i in seq_len(len2)){
-#	if (nchar(res2@row.names[i]) < 3){
-#		yseq <- dnorm(xseq,res2@.Data[[1]][i],res2@.Data[[2]][i])
-#		if (res2@.Data[[3]][i] * res2@.Data[[4]][i] < 0){
-#			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "red")
-#		} else {
-#			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "dark grey")
-#		}
-#		text(res2@.Data[[1]][i], 1 / (res2@.Data[[2]][i] * sqrt(2 * pi)),res2@row.names[i])
-#	}
-#}
+# (res2 <- precis(reg2,depth=2))
+# mean   sd  5.5% 94.5% rhat ess_bulk
+# s        0.72 0.11  0.56  0.89 1.01  2657.38
+# q        0.63 0.15  0.38  0.87 1.00  2242.07
+# l        0.32 0.15  0.09  0.56 1.00  1969.44
+# k       -0.38 0.09 -0.52 -0.24 1.00  1897.78
+# h        0.37 0.09  0.22  0.52 1.00  2208.08
+# g       -0.34 0.10 -0.49 -0.20 1.00  1920.52
+# f       -0.45 0.10 -0.61 -0.30 1.01  2267.86
+# c        0.74 0.06  0.65  0.83 1.00  2443.34
+# b        0.36 0.06  0.27  0.45 1.00  2162.38
+# a        0.35 0.14  0.14  0.57 1.00  2631.49
+# e        0.24 0.09  0.11  0.40 1.00  2169.46
+# d        0.74 0.13  0.56  0.96 1.00  2257.95
+# chi      0.70 0.08  0.59  0.83 1.00  2600.21
+# phi      0.86 0.09  0.72  1.03 1.00  2310.79
+# ypsilon  0.58 0.06  0.49  0.69 1.00  2160.27
+# gamma    0.04 0.04  0.00  0.12 1.00  1351.30
+# sigma    0.36 0.04  0.30  0.43 1.00  2304.37
+# rho      0.95 0.10  0.81  1.12 1.00  2476.98
+
+# len2 <- length(res2@.Data[[1]])
+# par(mfrow=c(1,1))
+# plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="")
+# xseq <- seq(-1.5,1.5,l=500)
+# for (i in seq_len(len2)){
+# 	if (nchar(res2@row.names[i]) < 3){
+# 		yseq <- dnorm(xseq,res2@.Data[[1]][i],res2@.Data[[2]][i])
+# 		if (res2@.Data[[3]][i] * res2@.Data[[4]][i] < 0){
+# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "red")
+# 		} else {
+# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "dark grey")
+# 		}
+# 		text(res2@.Data[[1]][i], 1 / (res2@.Data[[2]][i] * sqrt(2 * pi)),res2@row.names[i])
+# 	}
+# }
 
 # way to present data
-#precis(reg1,depth=2)
-#post <- extract.samples(reg1) #get samples from the posterior distribution
-#par(mfrow=c(1,2))
-#plot(datn$P,datn$A,col=2,lwd=3,xlab="log(literature occurences)",ylab="log(mean author number per year)")
-#for (i in 1:100) abline(a=0, b=post$a[i],lwd=1)
-#dens(post$a,lwd=2,col=2)
+# precis(reg1,depth=2)
+# post <- extract.samples(reg1) #get samples from the posterior distribution
+# par(mfrow=c(1,2))
+# plot(datn$P,datn$A,col=2,lwd=3,xlab="log(literature occurences)",ylab="log(mean author number per year)")
+# for (i in 1:100) abline(a=0, b=post$a[i],lwd=1)
+# dens(post$a,lwd=2,col=2)
 
 # Blavaan implementation
 
-# Blavaan cannot model the effect of a variable on the variance of another
-# Therefore, a workaround would be to estimate the variance and regress on 
+# Blavaan cannot model the effect of a variable on the variance of another.
+# Therefore, a workaround would be to estimate the variance and regress on
 # the variance instead of the variable itself
 
 ## test estimation of the variance
-#v1 <- seq(1,100,l=1000)
-#v2 <- rnorm(1000,0, sd = 1.5 * v1)
-#plot(v2 ~ v1)
-#ints <- 20
-#sdInts <- length(v2)/ints
-#sdVals <- rep(NA,ints)
-#for (i in seq_along(sdVals)) sdVals[i] <- sd(v2[seq_len(sdInts) + sdInts * (i - 1)])
-#sdPrds <- rep(NA,ints)
-#for (i in seq_along(sdPrds)) sdPrds[i] <- mean(v1[seq_len(sdInts) + sdInts * (i - 1)])
-#dat <- data.table(sdPrds,sdVals)
-#plot(sdVals~sdPrds,data=dat)
-#model <- '
-#		# relationships between measured variables
-#		sdVals ~ sdPrds
-#		'
+# v1 <- seq(1,100,l=1000)
+# v2 <- rnorm(1000,0, sd = 1.5 * v1)
+# plot(v2 ~ v1)
+# ints <- 20
+# sdInts <- length(v2)/ints
+# sdVals <- rep(NA,ints)
+# for (i in seq_along(sdVals)) sdVals[i] <- sd(v2[seq_len(sdInts) + sdInts * (i - 1)])
+# sdPrds <- rep(NA,ints)
+# for (i in seq_along(sdPrds)) sdPrds[i] <- mean(v1[seq_len(sdInts) + sdInts * (i - 1)])
+# dat <- data.table(sdPrds,sdVals)
+# plot(sdVals~sdPrds,data=dat)
+# model <- '
+# 		# relationships between measured variables
+# 		sdVals ~ sdPrds
+# 		'
 ## fit the model to the data
-#fit <- bsem(model, data = dat, sample=2000)
-#summary(fit)
+# fit <- bsem(model, data = dat, sample=2000)
+# summary(fit)
 # This approach works, but there is of course some additional uncertainty associated,
 # especially considering that the real data is very sparse
 
@@ -3249,23 +3321,23 @@ datn <- data.table(
 datn[, DVVar := numeric()]
 range(datn$A)
 range(datn$O)
-for (i in seq(-1,6,l=6)){
-	for (j in seq(-2,2.5,l=6)){
-		datn[A > i & A < i + 1 & O > j & O < j + 1, DVVar := mean(DV,na.rm=TRUE)]
+for (i in seq(-1, 6, l = 6)) {
+	for (j in seq(-2, 2.5, l = 6)) {
+		datn[A > i & A < i + 1 & O > j & O < j + 1, DVVar := mean(DV, na.rm = TRUE)]
 	}
 }
 
-plot(datn$A,datn$O,cex=10*(datn$DVVar-min(datn$DVVar,na.rm=TRUE))/(max(datn$DVVar,na.rm=TRUE)-datn$DVVar-min(datn$DVVar,na.rm=TRUE)))
-points(datn$A,datn$O,pch=16)
-abline(v=seq(-1,6,l=6),lty=2)
-abline(h=seq(-2,2.5,l=6),lty=2)
-par(mfrow=c(1,2))
-plot(datn$DVVar ~ datn$A, pch=16)
-plot(datn$DVVar ~ datn$O, pch=16)
+plot(datn$A, datn$O, cex = 10 * (datn$DVVar - min(datn$DVVar, na.rm = TRUE)) / (max(datn$DVVar, na.rm = TRUE) - datn$DVVar - min(datn$DVVar, na.rm = TRUE)))
+points(datn$A, datn$O, pch = 16)
+abline(v = seq(-1, 6, l = 6), lty = 2)
+abline(h = seq(-2, 2.5, l = 6), lty = 2)
+par(mfrow = c(1, 2))
+plot(datn$DVVar ~ datn$A, pch = 16)
+plot(datn$DVVar ~ datn$O, pch = 16)
 
-model1 <- '
+model1 <- "
 	# latent variable definitions
-	#DIV =~ C + TT + MP
+	# DIV =~ C + TT + MP
 	# relationships between measured variables
 	L ~ a * C
 	A ~  b * L + c * C
@@ -3273,16 +3345,17 @@ model1 <- '
 	TT ~ f * B + g * A + h * O + ii * S + j * AQ + k * DVVar
 	MP ~ l * B + m * A + n * O + o * S + p * AQ + q * TT
 	EF ~ r * TT + s * MP
-'
+"
 
 fit1 <- bsem(model1, data = datn)
 summary(fit1)
 # fitMeasures(fit)
+# plot(fit1,plot.type = "trace")
 # good overall fit, but several problematic coefficients
 
-model2 <- '
+model2 <- "
 	# latent variable definitions
-	#DIV =~ C + TT + MP
+	# DIV =~ C + TT + MP
 	# relationships between measured variables
 	L ~ a * C
 	A ~  b * L + c * C
@@ -3290,30 +3363,32 @@ model2 <- '
 	TT ~ f * B + g * A + h * O + k * DVVar
 	MP ~ l * B + q * TT
 	EF ~ s * MP
-'
+"
 
 fit2 <- bsem(model2, data = datn)
 summary(fit2)
-#fitMeasures(fit2)
-#plot(fit2,plot.type = "trace")
+fitMeasures(fit2)
+# plot(fit2,plot.type = "trace")
+# good overall fit, could try to include latent variable "true diversity"
 
-#model3 <- '
-#	# latent variable definitions
-#	DIV =~ C + TT + MP
-#	# relationships between measured variables
-#	L ~ a * C
-#	A ~  b * L + c * C
-#	DVVar ~  d * A + e * O
-#	TT ~ f * B + g * A + h * O + k * DVVar
-#	MP ~ l * B + q * TT
-#	EF ~ s * MP
+# model3 <- '
+# 	# latent variable definitions
+# 	DIV =~ C + TT + MP
+# 	# relationships between measured variables
+# 	L ~ a * C
+# 	A ~  b * L + c * C
+# 	DVVar ~  d * A + e * O
+# 	TT ~ f * B + g * A + h * O + k * DVVar
+# 	MP ~ l * B + q * TT
+# 	EF ~ s * MP
 #'
 #
-#fit3 <- bsem(model3, data = datn)
-#summary(fit3)
+# fit3 <- bsem(model3, data = datn)
+# summary(fit3)
 #fitMeasures(fit3)
 #plot(fit3,plot.type = "trace")
-# problem with effective sample size
+# problem with effective sample size adding latent variable, and not
+# needed for this analysis
 
 # Entry point ###################################
 
@@ -3325,7 +3400,7 @@ library(blavaan)
 library(lavaan)
 
 # clear workspace
-rm(list=ls())
+rm(list = ls())
 
 # set working directory
 setwd(paste0(.brd, "taxon description dates"))
