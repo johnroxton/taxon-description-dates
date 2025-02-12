@@ -15,6 +15,8 @@
 # 7 Source data from BiL explorer
 # 8 Source measure of public interest based on Wikipedia article lengths and Google hits
 # 9 Analyze taxon description data
+# 10 Compare species numbers between LifeGate, GBIF, and CoL
+# 11 Compare checked species numbers for Lepidoptera and Bryophyta
 ###################################################################################################
 
 # 1 Visualize data from LCVP and total numbers sent by LifeGate####################################
@@ -580,7 +582,7 @@ wcvpn[is.na(first_publication_date) & plant_name_id == "1159004-az", first_publi
 # check author contribution range (=first to last new description)
 authors <- strsplit(wcvpn$first_authors, split = ",|&|e\\x.?")
 authors <- sort(unique(sub("^\\s+|\\s+$", "", unlist(authors))))
-pubRange <- data.table(author = authors, firstPub = numeric(), lastPub = numeric())
+pubRange <- data.table(author = authors, firstPub = NA_real_, lastPub = NA_real_)
 for (i in seq_along(authors)) {
 	pubDates <- wcvpn[grepl(authors[i], first_authors)]$first_publication_date
 	pubRange[i, firstPub := min(pubDates)]
@@ -847,6 +849,7 @@ library(ape) # plot phylogenies nicely
 library(rphylopic) # get icons of taxonomic groups
 library(png) # plot icons of taxonomic groups
 library(RColorBrewer) # color palettes
+library(treemap)
 
 # clear workspace
 rm(list = ls())
@@ -856,6 +859,7 @@ setwd(paste0(.brd, "taxon description dates"))
 
 # read in metadata
 groupsMeta <- data.table(file = list.files(path = "Arten pro Jahr beschrieben"))
+groupsMeta <- groupsMeta[!grepl("_CoL_GBIF",groupsMeta$file)]
 groupsMeta[, name := sub(".* ", "", sub("\\s+beschriebene.*", "", file))]
 # create regular expression to define groups receiving same colors (monophyletic groups of groups)
 # Chordata is the only group that receives a distinguished color
@@ -880,10 +884,17 @@ groupsMeta[grepl("Basidio|Asco|Micro|Chloro|Rhodo|Chytridio|Bryo|Cilio|Eugleno|F
 groupsData <- fread(paste0("Arten pro Jahr beschrieben/", groupsMeta$file[1]))
 for (i in groupsVec) {
 	if (i > 1) {
-		groupsData <- cbind(groupsData, fread(paste0(
-			"Arten pro Jahr beschrieben/",
-			groupsMeta$file[i]
-		))$V2)
+		if (grepl("Lepidoptera|Bryophyta",groupsMeta$file[i])){
+			groupsData <- cbind(groupsData, fread(paste0(
+				"Arten pro Jahr beschrieben/",
+				sub("Jahr","Jahr_CoL_GBIF",groupsMeta$file[i])
+			))$V2)
+		} else {
+			groupsData <- cbind(groupsData, fread(paste0(
+				"Arten pro Jahr beschrieben/",
+				groupsMeta$file[i]
+			))$V2)
+		}
 	}
 }
 colnames(groupsData) <- c("year", groupsMeta$name)
@@ -975,10 +986,9 @@ fwrite(groupsMeta, file = "groupsMeta.txt")
 fwrite(groupsData, file = "groupsData.txt")
 fwrite(authorData, file = "authorData.txt")
 
-# get icons of groups
-# done manually from phylopic.org
-# groupsMeta$name
-# groupsMeta[1, icon :=
+# get icons of groups from phylopic.org
+# IDs were retrieved manually
+# groupsMeta[, icon := c(
 # 	"1b329337-8f8b-4380-8aae-23d50e0db14f",
 # 	"4de6d5a6-bae9-432a-bb39-546791224857",
 # 	"cc68fe27-0e9a-442d-a28d-0de60e30869e",
@@ -1027,10 +1037,9 @@ fwrite(authorData, file = "authorData.txt")
 # 	"8d07d74b-eafc-42bd-bd0a-120139d3cf36",
 # 	"05def04a-f550-4b77-bdbe-d7c25a22f229"
 # )]
-# i <- 1
-# get and save icons
+# # get and save icons
 # for (i in groupsVec){
-# 	save_phylopic(get_phylopic(uuid = groupsMeta$icon[i]),path=paste0("icons/",groupsMeta$name[i],".svg"))
+# 	save_phylopic(get_phylopic(uuid = groupsMeta$icon[i]),path=paste0("icons2/",groupsMeta$name[i],".svg"))
 # }
 
 parBackup <- par() # save graphics parameters for multiple trials
@@ -1125,6 +1134,145 @@ for (i in groupsVec) {
 }
 mtext("year", 1, 3, at = 1450)
 mtext("cumulative descriptions", 2, 52.5, at = 2.7, xpd = TRUE)
+# dev.off()
+
+# plot groups together based on phylogeny
+plotGroups <- list()
+plotGroups[[1]] <- c(1:5,44:47) # plants and fungi
+plotGroups[[2]] <- c(6:13) # unicellular species and "lower" plants
+plotGroups[[3]] <- c(37:43) # "lower" animals, crustaceans, myriapods, arachnids, tardigrads
+plotGroups[[4]] <- c(14:20) # Chordata, Spiralia
+plotGroups[[5]] <- c(21:28) # insects 1
+plotGroups[[6]] <- c(29:36) # insects 2
+
+# pdf("description history comparative.pdf",width=10,height=5)
+cols <- c(brewer.pal(8,"Dark2"),"black")
+par(mfrow=c(2,3))
+par(oma=c(5,5,0.1,0.1))
+par(mar=c(0,0,0,.45))
+i <- 1
+groupsMeta[color == "black", color := "#000000"]
+for (i in seq_along(plotGroups)){
+	plot(NULL, xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n", xlab="", ylab="")
+	abline(h = c(0.2, 0.4, 0.6, 0.8, 1), lty = 3)
+	abline(v = c(1800, 1850, 1900, 1950, 2000), lty = 3)
+	if ((i-1) %% 3 == 0) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1))
+	if (i > 3) axis(1, at = c(1800, 1900, 2000))
+	for (j in groupsVec){	
+		lines(groupsData$year,cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]),col="lightgrey")
+	}
+	k <- 1
+	for (j in plotGroups[[i]]){
+		lines(groupsData$year,cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]),col=cols[k],lwd=2)
+		text(1790,1-k*0.07,groupsMeta$name[j],adj=0,col=cols[k],font=2,cex=1.1)
+		img <- readPNG(paste0("group icons/", groupsMeta$name[j], ".png"))
+		scale <- 30 / diff(range(groupsData$year)) * 0.6
+		colRGB <- col2rgb(cols[k]) / 255
+		for (l in 1:3) img[, , l] <- colRGB[[l]]
+		rasterImage(img, 1760, 1- k * 0.07-0.03, 1775, 1- k * 0.07-0.03+scale)
+		k <- k + 1
+	}
+	col1 <- groupsMeta$color[plotGroups[[i]][1]]
+	col2 <- groupsMeta$color[plotGroups[[i]][length(plotGroups[[i]])]]
+	colParts1 <- c(substr(col1, 2, 3), substr(col1, 4, 5), substr(col1, 6, 7))
+	colParts2 <- c(substr(col2, 2, 3), substr(col2, 4, 5), substr(col2, 6, 7))
+	colRange <- list()
+	for (k in 1:3) colRange[[k]] <- sprintf("%02x",as.hexmode(round(seq(paste0("0x",colParts2)[k],paste0("0x",colParts1)[k],l=100))))
+	for (k in seq_len(100)){
+		currCol <- paste0("#",colRange[[1]][k],colRange[[2]][k],colRange[[3]][k])
+		rect(2028,-.1+1.2/100*(k-1),2033,-.1+1.2/100*(k)+0.01,col=currCol,xpd=TRUE,border=NA)
+	}
+}
+# dev.off()
+
+# plot groups based on curve shape
+groupsDataRel <- groupsData[,-"year"]
+groupsDataRel <- data.table(sapply(groupsDataRel, function(x) x / sum(x)))
+groupsDataRel[, year := groupsData$year]
+groupsDataRelSpeed <- as.matrix(groupsDataRel[,-"year"])
+for (j in seq_len(nrow(groupsDataRel) - 4)){
+	groupsDataRelSpeed[j,] <- colSums(groupsDataRel[j:(j+0),-"year",drop=FALSE])
+}
+plotGroups <- list()
+# groups that were over-sampled before 1900
+i <- 1
+res <- colSums(groupsDataRel[year <= 1900,-"year"])
+plotGroups[[i]] <- c(order(res, decreasing = TRUE)[1:6])
+# groups that were over-sampled after 1975
+i <- i + 1
+res <- colSums(groupsDataRel[year <= 1975,-"year"])
+plotGroups[[i]] <- setdiff(order(res, decreasing = TRUE),plotGroups[[i - 1]])[1:9]
+# groups that were under-sampled before 1975
+i <- i + 1
+res <- colSums(groupsDataRel[year <= 1975,-"year"])
+plotGroups[[i]] <- c(order(res)[1:8])
+# groups that strongly increased in specific time intervals
+i <- i + 1
+maxRate <- apply(groupsDataRelSpeed[1:which(groupsData$year == 2010),],2,max)
+plotGroups[[i]] <- setdiff(order(maxRate, decreasing = TRUE),unlist(plotGroups[1:(i - 1)]))[1:8]
+maxYears <- apply(groupsDataRelSpeed[1:which(groupsData$year == 2010),plotGroups[[i]]],2,function(x)which(x == max(x))) - 0.5
+# plot(cumsum(groupsDataRel[[7]]),type="l")
+# abline(v=258-0.5)
+# groups that slowly increased after 1900 in specific time intervals
+i <- i + 1
+minRate <- apply(groupsDataRelSpeed[which(groupsData$year == 1900):which(groupsData$year == 2010),],2,min)
+plotGroups[[i]] <- setdiff(order(minRate, decreasing = FALSE),unlist(plotGroups[1:(i - 1)]))[1:8]
+minYears <- apply(groupsDataRelSpeed[which(groupsData$year == 1900):which(groupsData$year == 2010),plotGroups[[i]]],2,function(x)which(x == min(x))[1]) - 0.5
+minYears <- minYears - 1753 + 1900
+# rest
+i <- i + 1
+rest <- setdiff(1:47,unlist(plotGroups[1:(i - 1)]))
+plotGroups[[i]] <- rest
+
+pdf("description history comparative_functional.pdf",width=12.3,height=11.7)
+cols <- c(brewer.pal(8,"Dark2"),rep("black",4))
+par(mfrow=c(3,2))
+par(oma=c(5,5,0.1,0.1))
+par(mar=c(0,0,0,0))
+i <- 5
+groupsMeta[color == "black", color := "#000000"]
+for (i in seq_along(plotGroups)){
+	plot(NULL, xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n", xlab="", ylab="")
+	abline(h = c(0, 0.2, 0.4, 0.6, 0.8, 1), lty = 3)
+	abline(v = c(1800, 1850, 1900, 1950, 2000), lty = 3)
+	if ((i-1) %% 2 == 0) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1), cex.axis=2)
+	if (i > 4) axis(1, at = c(1800, 1900, 2000), cex.axis=2, mgp=c(3,1.75,0))
+	for (j in groupsVec){	
+		lines(groupsData$year,cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]),col="lightgrey")
+	}
+	text(1760,0.97,paste0("(",letters[i],")"),adj=0,font=2,cex=2)
+	k <- 1
+	for (j in plotGroups[[i]]){
+		lines(groupsData$year,cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]),col=cols[k],lwd=2)
+		text(1790,1-(k+1)*0.07,groupsMeta$name[j],adj=0,col=cols[k],font=2,cex=1.1)
+		img <- readPNG(paste0("group icons/", groupsMeta$name[j], ".png"))
+		scale <- 30 / diff(range(groupsData$year)) * 0.6
+		colRGB <- col2rgb(cols[k]) / 255
+		for (l in 1:3) img[, , l] <- colRGB[[l]]
+		rasterImage(img, 1760, 1- (k+1) * 0.07-0.03, 1775, 1- (k+1) * 0.07-0.03+scale)
+		k <- k + 1
+	}
+	if (i == 1) abline(v=1900,lty=2,col="black")
+	if (i %in% c(2,3)) abline(v=1975,lty=2,col="black")
+	if (i %in% c(4,5)){
+		if (i == 4) selYears <- maxYears else selYears <- minYears
+		k <- 1
+		for (j in plotGroups[[i]]){	
+			points(
+				unlist(selYears)[k] + 1752,
+				(cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]))[unlist(selYears)[k]-0.5],
+				,col="black",cex=1.6)
+			segments(
+				unlist(selYears)[k] + 1752,
+				0,
+				unlist(selYears)[k] + 1752,
+				0.05,
+				,col=cols[k],lwd=2)
+			k <- k + 1
+	}	}
+}
+dev.off()
+
 # plot all groups separately
 par(parBackup)
 for (i in groupsVec) {
@@ -1162,7 +1310,18 @@ for (i in groupsVec) {
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
 	rasterImage(img, 1760, log(2001) / max(log(groupsData + 1)), 1790, log(2001) / max(log(groupsData + 1)) + scale)
 }
-# dev.off()
+
+# plot number of descriptions per group
+dtf <- data.table(index=colnames(groupsData)[-1],vSize=colSums(groupsData[,-"year"]),color=groupsMeta$color,fontsize=10)
+setorder(dtf,vSize)
+dtf[vSize > 75000, fontsize := 10000]
+dtf[vSize > 75000, fontsize := 1000]
+
+# plot all groups, remove labels of smaller groups manually
+# create a larger plot to be able to copy paste a fraction of it, whose labels are not displayed otherwise
+pdf("number of descriptions per group.pdf", width=117,height=83)
+treemap(dtf,index="index",vSize="vSize",title="",vColor="color",type="color",border.col = "grey",border.lwds=25,fontsize.labels = 200,lowerbound.cex.labels=0)
+dev.off()
 
 # 4 Approximate distribution of description dates using functions##################################
 nextScript <- NULL
@@ -1485,8 +1644,7 @@ for (i in seq(0.1, 0.5, l = 5)) {
 ## custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
 # m$m1 <- list()
 # for (i in groupsVec) {
-# for (i in which(coefs[[1]][1,]>6)) {
-# 	print(paste0("Bertalanffy model ", i, "/", nrow(groupsMeta)))
+#  	print(paste0("Bertalanffy model ", i, "/", nrow(groupsMeta)))
 # 	datn <- list(
 # 		Y = groupsData$year - min(groupsData$year),
 # 		D = cumsum(groupsData[[i + 1]]) / max(cumsum(groupsData[[i + 1]]))
@@ -1506,7 +1664,7 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # 	# traceplot(q1,pars=c("k","a","b","sigma"),n_cols=2)
 # }
 # coefs[[1]] <- sapply(m$m1, coef)
-# normal distribution function: f(x) = k * 1 / ((2 * pi)^0.5 * a) * exp(-0.5 * ((x - b) / a)^2)
+# # normal distribution function: f(x) = k * 1 / ((2 * pi)^0.5 * a) * exp(-0.5 * ((x - b) / a)^2)
 # m$m2 <- list()
 #for (i in groupsVec) {
 # 	print(paste0("Normal model ", i, "/", nrow(groupsMeta)))
@@ -1521,21 +1679,20 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # 			D ~ normal(mu, sigma),
 #			# note that + minY ensures the maximum is not reached before present (as in this data,
 #           # minY = - max(Y), meaning max(Y) is added to b to ensure it has at least this size
-# 			mu <- k * 1 / ((2 * 3.141593)^0.5 * a) * exp(-0.5 * ((Y - b + minY) / a)^2),
+# 			mu <- (k / ((2 * 3.141593)^0.5 * a) + 1) * exp(-0.5 * ((Y - b + minY) / a)^2),
 # 			k ~ exponential(1),
 # 			a ~ exponential(1),
 # 			b ~ exponential(1),
 # 			sigma ~ exponential(1)
 # 		),
 # 		data = datn, chains = 4, log_lik = TRUE
-## 	)
-##	print(coefs[[2]][,i])
-##	print(coef(m$m2[[i]]))
-##	# precis(m$m2[[i]])
-#	#
-#	traceplot(m$m2[[i]],pars=c("k","a","b","sigma"),n_cols=2)
+# 	)
+#	#	print(coefs[[2]][,i])
+#	#	print(coef(m$m2[[i]]))
+#	#	print(precis(m$m2[[i]])
+#	# 	traceplot(m$m2[[i]],pars=c("k","a","b","sigma"),n_cols=2)
 #}
-# coefs[[2]] <- sapply(m$m2, coef)
+#coefs[[2]][,1] <- sapply(m$m2, coef)
 ## Gompertz function: f(x) = k * exp(-a * exp(-b * x))
 # m$m3 <- list()
 # for (i in groupsVec) {
@@ -1559,6 +1716,13 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # 	# traceplot(m$m3[[i]],pars=c("k","a","b","sigma"),n_cols=2)
 # }
 # coefs[[3]] <- sapply(m$m3, coef)
+
+# account for coefficient constraints in normal distribution fit
+# maximum not before 2017 - add minY to b of coefs[[2]]
+# coefs[[2]][rownames(coefs[[2]]) == "b",] <- coefs[[2]][rownames(coefs[[2]]) == "b",] - min(scale(groupsData$year))
+# maximum not smaller than data - add sqrt(2*pi)*a to k of coefs[[2]]
+# coefs[[2]][rownames(coefs[[2]]) == "k",] <- coefs[[2]][rownames(coefs[[2]]) == "k",] + sqrt(2*pi)*coefs[[2]][rownames(coefs[[2]]) == "a",]
+
 load("models3.RData")
 
 # plot all groups separately with cumulative relative values and model approximations
@@ -1573,7 +1737,7 @@ zeros <- rep(0, nrow(groupsData))
 
 i <- 7
 par(parBackup)
-# pdf("description history fits.pdf", width = 11.7, height = 8.3)
+# pdf("description history fits_new.pdf", width = 11.7, height = 8.3)
 # plot all groups separately with all approximation functions
 xseq <- seq(from = 0, to = max(groupsData$year) - min(groupsData$year), len = 50)
 for (i in groupsVec) {
@@ -1712,11 +1876,9 @@ funNames <- c("Betalanffy", "normal", "Gompertz")
 funCoefs <- data.table(group = groupsMeta$name)
 vars <- c("estFutureDesc", "tenPercDesc", "maxDescPace", "descVar")
 
-# add minY to b of coefs[[2]]
-coefs[[2]][rownames(coefs[[2]]) == "b",] <- coefs[[2]][rownames(coefs[[2]]) == "b",] - min(scale(groupsData$year))
 
-# estimated future descriptions relative to current descriptions
 for (i in seq_along(funNames)) {
+	# estimated future descriptions relative to current descriptions
 	funCoefs[, new := numeric()]
 	if (i < 2) {
 		# custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
@@ -1729,6 +1891,7 @@ for (i in seq_along(funNames)) {
 		funCoefs[, new := coefs[[i]][1, ]]
 	}
 	colnames(funCoefs)[ncol(funCoefs)] <- paste0(vars[1], "_", funNames[i])
+	# time until 10% found
 	funCoefs[, new := numeric()]
 	if (i < 2) {
 		# custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
@@ -1744,6 +1907,7 @@ for (i in seq_along(funNames)) {
 		funCoefs[, new := log((log(0.1 / coefs[[i]][1, ]) / -coefs[[i]][2, ])) / -coefs[[i]][3, ]]
 	}
 	colnames(funCoefs)[ncol(funCoefs)] <- paste0(vars[2], "_", funNames[i])
+	# maximum description pace
 	funCoefs[, new := numeric()]
 	if (i < 2) {
 		# custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
@@ -1767,6 +1931,7 @@ for (i in seq_along(funNames)) {
 		funCoefs[, new := yVals * colSums(groupsData)[-1]]
 	}
 	colnames(funCoefs)[ncol(funCoefs)] <- paste0(vars[3], "_", funNames[i])
+	# description variability
 	funCoefs[, new := numeric()]
 	if (i < 2) {
 		# custom Bertalanffy function: f(x) = k * (1 - exp(-b * x))^a
@@ -1810,9 +1975,46 @@ rmCols <- c("file", "color", "finalAuthorData")
 groupsResponses[, (rmCols) := NULL]
 fwrite(groupsResponses, file = "groupsResponses.txt")
 
+# plot an example on one page to explain the fitting process
+# pdf("description fit example.pdf", width = 11.7, height = 8.3)
+i <- 9
+par(parBackup)
+par(mar=c(5.1,5.1,4.1,2.1))
+plot(NULL,
+		xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n",
+		xlab = "year", ylab = "cumulative descriptions", cex.lab=1.5
+)
+abline(h = c(0.2, 0.4, 0.6, 0.8), lty = 3)
+abline(v = c(1800, 1850, 1900, 1950, 2000), lty = 3)
+axis(2, cex.axis=1.5)
+axis(1, at = c(1800, 1900, 2000), cex.axis=1.5)
+polygon(polyYear, c(cumsum((groupsData[[i + 1]])) / sum(groupsData[[i + 1]]), zeros),
+		border = NA, col = "grey"
+)
+img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png")) 
+scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))* 11.7/8.3
+j <- 2
+# shade(apply(mu, 2, PI), xseq, col = j + 1)
+# for normal distributions, it was necessary to scale the year variable to get good results
+mu <- link(m[[j]][[i]], data = list(Y = standardize(xseq), minY = min(scale(xseq))))
+lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "black")
+# add time until 10% found
+abline(h = 0.1, col = "red", lwd = 2)
+# add inflection point
+xMax <- coefs[[2]][3,i] - coefs[[2]][2,i]
+st <- standardize(groupsData$year - min(groupsData$year))
+xMax[xMax > max(st)] <- max(st)
+xMax <- xMax * attr(st,"scaled:scale") + attr(st,"scaled:center") + 1753
+abline(v = xMax, col="red",lwd=2)
+# add maximum
+abline(h = funCoefs$estFutureDesc_normal[i], col="red",lwd=2)
+rasterImage(img, 1755, .85, 1785, .85 + scale)
+text(1790, .86 + scale/2, labels = groupsMeta$name[i], adj = c(0, 0.5),cex=1.5)
+# dev.off()
+
 # show estimates of response variables extracted from curves
 
-# pdf("response variables.pdf", width = 8.3, height = 11.7)
+#pdf("response variables.pdf", width = 8.3, height = 11.7)
 # estimated future descriptions relative to current descriptions
 par(mfrow = c(4, 3))
 par(oma = c(0, 1, 4, 1))
@@ -1877,19 +2079,23 @@ for (i in seq_along(funNames)) {
 	)
 	if (i == 2) mtext("sum of squares (estimates - measurements)", 3, 1, font = 2, cex = 0.9)
 }
-# dev.off()
+#dev.off()
 
 # nicer display of the above
-# pdf("testDisplay.pdf")
-# b1 <- barplot(coefs[[1]][1, ], col = groupsMeta$color, border = NA, horiz = TRUE, space = 0.5)
-# i <- 1
-# for (i in seq_len(ncol(coefs[[1]]))) {
-# 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
-# 	scale <- max(coefs[[1]][1, ]) / max(b1)
-# 	colRGB <- col2rgb(groupsMeta$color[i]) / 255
-# 	for (j in 1:3) img[, , j] <- colRGB[[j]]
-# 	rasterImage(img, coefs[[1]][1, i] + 0.5, b1[i] - 1, scale * 2 + coefs[[1]][1, i] + 0.5, b1[i] + 1, xpd = TRUE)
-# }
+par(parBackup)
+#pdf("testDisplay.pdf")
+ b1 <- barplot(coefs[[1]][1, ], col = groupsMeta$color, border = NA, horiz = TRUE, xlim=c(0,11),space = 0.6,
+	main="Bertalanffy function k")
+ textCols <- rep("black",nrow(groupsMeta))
+ textCols[groupsMeta$color == "black"] <- "white"
+ for (i in seq_len(ncol(coefs[[1]]))) {
+	text(0.025,b1[i] - 1 + 1, groupsMeta$name[i],cex=0.3,adj=0,col=textCols[i])
+ 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
+ 	scale <- max(coefs[[1]][1, ]) / max(b1)
+ 	colRGB <- col2rgb(groupsMeta$color[i]) / 255
+ 	for (j in 1:3) img[, , j] <- colRGB[[j]]
+ 	rasterImage(img, coefs[[1]][1, i] + 0.075, b1[i] - 1, scale * 2 + coefs[[1]][1, i] + 0.075, b1[i] + 1, xpd = TRUE)
+ }
 # dev.off()
 
 # plot numbers and groups
@@ -1903,6 +2109,67 @@ for (i in groupsVec) {
 	rasterImage(img, 1.452, i - 1, 1.55, i)
 	text(2, i - 0.5, groupsMeta$name[i], adj = 0, col = groupsMeta$color[i], cex = 0.7)
 	text(1, i - 0.5, i, col = groupsMeta$color[i], cex = 0.7)
+}
+# dev.off()
+
+# get a measure of decrease in velocity due to idiosyncratic events (wars, other crisis)
+# pdf("description pace anomalies.pdf",width=11.7,height=8.3)
+plot(NULL, ylim= c(0,1.9), xlim= range(groupsData$year), type="l", xlab="year", ylab="", yaxt = "n")
+numMax <- max(rowSums(speeds == -1),rowSums(speeds == 1))
+axis(2,c(0,0.5,1,1.5 + c(0,1/6,-1/6,1/3,-1/3)),c(0,0.5,1,0,numMax/2,numMax/2,numMax,numMax))
+text(1724,0.5,"descriptions",srt=90,cex=1.2,xpd=TRUE)
+text(1724,1.5,"description pace anomalies",srt=90,cex=1.2,xpd=TRUE)
+abline(h=1.1)
+for (i in seq_len(ncol(groupsData) - .8)){
+	lines(groupsData$year,cumsum(groupsData[[i  +1]])/sum(groupsData[[i  +1]]), col="grey")
+}
+lines(groupsData$year,cumsum(rowSums(groupsData[,-1]))/sum(groupsData[,-1]), lwd=2)
+# Franco-German war
+polygon(c(c(1870:1871),rev(c(1870:1871))),c(rep(0,2),rep(1.9,2)),col="#99555555", border=NA)
+# first world war
+polygon(c(c(1914:1918),rev(c(1914:1918))),c(rep(0,5),rep(1.9,5)),col="#99555555", border=NA)
+# second world war
+polygon(c(c(1939:1945),rev(c(1939:1945))),c(rep(0,7),rep(1.9,7)),col="#99555555", border=NA)
+# first high-quality microscope from Carl Zeiss # no visible effect
+# polygon(c(c(1872:1873),rev(c(1872:1873))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+# first electrone microscope from Ernst Ruska and Max Knoll # no visible effect
+# polygon(c(c(1931:1932),rev(c(1931:1932))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+# publication of Grundzüge einer Theorie der pyhlogenetischen Systematik
+polygon(c(c(1950:1951),rev(c(1950:1951))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+# publication of Illustrations of the Zoology of South Africa
+polygon(c(c(1838:1839),rev(c(1838:1839))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+speeds <- matrix(0,nrow(groupsData),ncol(groupsData) - 1)
+for (i in seq_len(ncol(groupsData) - 1)){
+	for (j in seq_along(groupsData[[i + 1]])){
+		if (j > 5 & j < nrow(groupsData)){
+			if (mean(groupsData[[i + 1]][j+c(0:4)],na.rm=TRUE) < 1/2 * mean(groupsData[[i + 1]][j-(1:5)],na.rm=TRUE)
+			 	#& any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE) 
+				#& groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
+				& (mean(groupsData[[i + 1]][j+c(0:4)],na.rm=TRUE)-mean(groupsData[[i + 1]][j-(1:5)],na.rm=TRUE))/sum(groupsData[[i+1]]) < -0.001
+	 			) speeds[j,i] <- -1
+			if (mean(groupsData[[i + 1]][j+c(0:4)],na.rm=TRUE) > 2 * mean(groupsData[[i + 1]][j-(1:5)],na.rm=TRUE)
+				#& any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE) 
+				#& groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
+				& (mean(groupsData[[i + 1]][j+c(0:4)],na.rm=TRUE)-mean(groupsData[[i + 1]][j-(1:5)],na.rm=TRUE))/sum(groupsData[[i+1]]) > 0.001
+				) speeds[j,i] <- 1
+		
+		}
+	}
+}
+abline(h=1.5,lty=2)
+for (i in seq_len(nrow(speeds))){
+	if (i > 5){
+		segments(groupsData$year[i],1.5,groupsData$year[i],1.5 - sum(speeds[i,] == -1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3,lwd=1.1)
+		segments(groupsData$year[i],1.5,groupsData$year[i],1.5 + sum(speeds[i,] == 1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3,lwd=1.1)
+		if (sum(speeds[i,] == -1) > 0.4 * max(rowSums(speeds == -1),rowSums(speeds == 1)) 
+			& sum(speeds[i - 1,] == -1) <= 0.4 * max(rowSums(speeds == -1),rowSums(speeds == 1))) {
+			text(groupsData$year[i] - 1,1.5 - sum(speeds[i,] == -1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3 - 0.14,groupsData$year[i],adj=0,srt=90,cex=0.9)
+		}
+		if (sum(speeds[i,] == 1) > 0.65 * max(rowSums(speeds == -1),rowSums(speeds == 1)) 
+				& sum(speeds[i - 1,] == 1) <= 0.65 * max(rowSums(speeds == -1),rowSums(speeds == 1))) {
+			text(groupsData$year[i] - 1,1.5 + sum(speeds[i,] == 1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3 + 0.02,groupsData$year[i],adj=0,srt=90,cex=0.9)
+		}
+	}
 }
 # dev.off()
 
@@ -2016,50 +2283,173 @@ continents <- c("africa", "antarctica", "asia", "europe", "north_america", "ocea
 
 # Retrieve species numbers of all taxa per continent
 
+# There is a problem with oceans: Species found there are not assigned to any continent. Therefore, our data
+# is biased, as terrestrial groups are treated differently from such the also live in the seas.
+# I can calculate overall species numbers, but this has names with no occurrences and such with occurrences
+# outside continents. A possibility is to us entries that also have coordinates, as this excludes the no occurrences.
+# However, this also excludes some occurrences where locations were given like "Brazil", or "Patagonia".
+# To make things comparable and calculate the proportion of (ignored) marine species, I therefore calculate everyting
+# with coordinates. This eliminates about 8% of the data apparently (read in blog).
+
 # GBIF occurrences with facetted species numbers - yes, species keys correspond to accepted species (in theory)
-resSpecs <- list()
+resSpecs <- list() # one entry per taxonomic group
 for (i in seq_along(groupsGBIFTaxonKeys)) {
 	if (i > 0) {
 		print(names(groupsGBIFTaxonKeys)[i])
-		resSpecs[[i]] <- list()
+		resSpecs[[i]] <- list() # seven entries, one per continent
 		if (!is.na(groupsGBIFTaxonKeys)[i]) {
 			for (j in seq_along(continents)) {
-				resSpecs[[i]][[j]] <- NA
+				resSpecs[[i]][[j]] <- list()  # all and with coordinates only
+				resSpecs[[i]][[j]][[1]] <- NA # species keys for each species
+				resSpecs[[i]][[j]][[2]] <- NA
+				# continent with or without coordinates
 				offset <- 0
 				repeat {
 					res <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=", groupsGBIFTaxonKeys[i], "&continent=", continents[j], "&limit=0&facet=speciesKey&facetLimit=500000&facetOffset=", offset))
-					resSpecs[[i]][[j]] <- c(resSpecs[[i]][[j]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
+					resSpecs[[i]][[j]][[1]] <- c(resSpecs[[i]][[j]][[1]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
 					if (length(res$facets[[1]]$counts) < 500000) break else offset <- offset + 500000
 				}
+				# continent with coordinates
+				offset <- 0
+				repeat {
+					res <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=", groupsGBIFTaxonKeys[i], "&hasCoordinate=True&continent=", continents[j], "&limit=0&facet=speciesKey&facetLimit=500000&facetOffset=", offset))
+					resSpecs[[i]][[j]][[2]] <- c(resSpecs[[i]][[j]][[2]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
+					if (length(res$facets[[1]]$counts) < 500000) break else offset <- offset + 500000
+				}
+			}
+			# whole world with coordinates
+			resSpecs[[i]][[j + 1]] <- NA
+			offset <- 0
+			repeat {
+				res <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=", groupsGBIFTaxonKeys[i], "&hasCoordinate=TRUE&limit=0&facet=speciesKey&facetLimit=500000&facetOffset=", offset))
+				resSpecs[[i]][[j + 1]] <- c(resSpecs[[i]][[j + 1]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
+				if (length(res$facets[[1]]$counts) < 500000) break else offset <- offset + 500000
 			}
 		}
 	}
 }
+
+# check whether more information could be gained by using country instead of continent
+#countries<-c("AF","AX","AL","DZ","AS","AD","AO","AI","AQ","AG","AR","AM","AW","AU","AT","AZ","BS",
+#	"BH","BD","BB","BY","BE","BZ","BJ","BM","BT","BO","BQ","BA","BW","BV","BR","IO","BN","BG","BF",
+#	"BI","KH","CM","CA","CV","KY","CF","TD","CL","CN","CX","CC","CO","KM","CD","CG","CK","CR","CI",
+#	"HR","CU","CW","CY","CZ","DK","DJ","DM","DO","EC","EG","SV","GQ","ER","EE","ET","FK","FO","FJ",
+#	"FI","FR","GF","PF","TF","GA","GM","GE","DE","GH","GI","GR","GL","GD","GP","GU","GT","GG","GN",
+#	"GW","GY","HT","HM","VA","HN","HK","HU","IS","IN","ID","IR","IQ","IE","IM","IL","IT","JM","JP",
+#	"JE","JO","KZ","KE","KI","KP","KR","KW","KG","LA","LV","LB","LS","LR","LY","LI","LT","LU","MO",
+#	"MK","MG","MW","MY","MV","ML","MT","MH","MQ","MR","MU","YT","MX","FM","MD","MC","MN","ME","MS",
+#	"MA","MZ","MM","NA","NR","NP","NL","NC","NZ","NI","NE","NG","NU","NF","MP","NO","OM","PK","PW",
+#	"PS","PA","PG","PY","PE","PH","PN","PL","PT","PR","QA","RE","RO","RU","RW","BL","SH","KN","LC",
+#	"MF","PM","VC","WS","SM","ST","SA","SN","RS","SC","SL","SG","SX","SK","SI","SB","SO","ZA","GS",
+#	"SS","ES","LK","SD","SR","SJ","SZ","SE","CH","SY","TW","TJ","TZ","TH","TL","TG","TK","TO","TT",
+#	"TN","TR","TM","TC","TV","UG","UA","AE","GB","US","UM","UY","UZ","VU","VE","VN","VG","VI","WF",
+#	"EH","YE","ZM","ZW","AA","XK","XZ","ZZ")
+#resTestCountry <- list()
+#for (i in seq_along(countries)){
+#	resTestCountry[[i]] <- NA
+#	offset <- 0
+#	repeat {
+#		res <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=1470&country=", countries[i], "&limit=0&facet=speciesKey&facetLimit=500000&facetOffset=", offset))
+#		resTestCountry[[i]] <- c(resTestCountry[[i]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
+#		if (length(res$facets[[1]]$counts) < 500000) break else offset <- offset + 500000
+#	}
+#}
+#resTestContinent <- list()
+#for (i in seq_along(continents)){
+#	resTestContinent[[i]] <- NA
+#	offset <- 0
+#	repeat {
+#		res <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=1470&continent=", continents[i], "&limit=0&facet=speciesKey&facetLimit=500000&facetOffset=", offset))
+#		resTestContinent[[i]] <- c(resTestContinent[[i]], as.numeric(sapply(res$facets[[1]]$counts, function(x) x$name)))
+#		if (length(res$facets[[1]]$counts) < 500000) break else offset <- offset + 500000
+#	}
+#}
+#sort(setdiff(unique(unlist(resTestCountry)),unique(unlist(resTestContinent))))
+#sort(setdiff(unique(unlist(resTestContinent)),unique(unlist(resTestCountry))))
+# more can be gained by using country data. apparently, there is more information on countries than on 
+# continents. however, i will not run this again for now because we also lose occurrences. additionally, we
+# would have to assign continents to countries and calculate everything for 253 instead of 7 areas.
+# for vascular plants, we would win 7314 species and lose 133. for haptophyta, we would win 133 and lose 2.
+# for beetles, we would gain 8569 and lose 315.
+
+## check effect of being marine with the blue whale as an example
+#res <- c()
+#for (i in seq_along(continents)){
+#	res <- c(res,fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=2440735&continent=", continents[i], "&limit=0"))$count)
+#}
+## found per continent
+#sum(res)
+## found in the whole world, including museums with unknown provenance
+#resWorld <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=2440735&limit=0"))$count
+#resWorld
+## found in the whole world without coordinates
+#resNoCoords <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=2440735&limit=0&hasCoordinate=FALSE"))$count
+## subtract no coords from world
+#resWorld - resNoCoords
+#resWaterbody <- fromJSON(paste0("https://api.gbif.org/v1/occurrence/search?taxon_key=2440735&limit=0&facet=waterBody"))
+#resWaterbody
+# it is possible to retrieve waterbody information, however, for our approach, this is not helpful, as not all species occur in water
+# and we cannot use nested facets.
+
 # calculate numbers for Crustaceae and Myriapoda (warning: has several NA values in it)
 for (i in seq_along(continents)) {
-	resSpecs[[which(names(groupsGBIFTaxonKeys) == "Crustacea")]][[i]] <- unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% crustaceans), function(x) {
-		resSpecs[[x]][[i]]
-	}))
-	resSpecs[[which(names(groupsGBIFTaxonKeys) == "Myriapoda")]][[i]] <- unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% myriapods), function(x) {
-		resSpecs[[x]][[i]]
-	}))
+	resSpecs[[which(names(groupsGBIFTaxonKeys) == "Crustacea")]][[i]] <- list()
+	resSpecs[[which(names(groupsGBIFTaxonKeys) == "Myriapoda")]][[i]] <- list()
+	for (j in 1:2){
+		resSpecs[[which(names(groupsGBIFTaxonKeys) == "Crustacea")]][[i]][[j]] <- 
+			unique(unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% crustaceans), function(x) {
+			resSpecs[[x]][[i]][[j]]
+		})))
+		resSpecs[[which(names(groupsGBIFTaxonKeys) == "Myriapoda")]][[i]][[j]] <-
+			unique(unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% myriapods), function(x) {
+			resSpecs[[x]][[i]][[j]]
+		})))
+	}
 }
-resSpecsTable <- data.table(GBIFTaxonKey = groupsGBIFTaxonKeys, name = names(groupsGBIFTaxonKeys))
-# sum up europe and north america
-temp <- sapply(seq_along(resSpecs), function(x) length(unique(unlist(resSpecs[[x]][4:5]))) - 1)
-resSpecsTable[, europe_north_america := temp]
-temp <- sapply(seq_along(resSpecs), function(x) length(unique(unlist(resSpecs[[x]][c(1:3, 6:7)]))) - 1)
-resSpecsTable[, africa_antarctica_asia_oceania_south_america := temp]
-temp <- sapply(seq_along(resSpecs), function(x) length(unique(unlist(resSpecs[[x]][c(1:7)]))) - 1)
-resSpecsTable[, world := temp]
-# calculate ratio
-resSpecsTable <- resSpecsTable[!name %in% c(myriapods, crustaceans)]
-resSpecsTable[, ratio := europe_north_america / world]
+resSpecs[[which(names(groupsGBIFTaxonKeys) == "Crustacea")]][[8]] <- 
+	unique(unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% crustaceans), function(x) {
+	resSpecs[[x]][[8]]
+})))
+resSpecs[[which(names(groupsGBIFTaxonKeys) == "Myriapoda")]][[8]] <- 
+	unique(unlist(sapply(which(names(groupsGBIFTaxonKeys) %in% myriapods), function(x) {
+	resSpecs[[x]][[8]]
+})))
 
-# check ratios across groups
-setorder(resSpecsTable, "ratio")
-resSpecsTable[, c("name", "ratio")]
-hist(resSpecsTable$ratio)
+# create summary table
+resSpecsTable <- data.table(GBIFTaxonKey = groupsGBIFTaxonKeys, name = names(groupsGBIFTaxonKeys))
+resSpecsTable[, c("europe_north_america","africa_antarctica_asia_oceania_south_america","world",
+	"europe_north_america_coords","africa_antarctica_asia_oceania_south_america_coords","world_coords") := NA_real_]
+for (i in seq_len(nrow(resSpecsTable))){
+	en <- enc <- aaaos <- aaaosc <- w <- wc <- NA
+	for (j in seq_along(continents)){
+		if (continents[j] %in% c("europe","north_america")){
+			en <- union(en,unlist(resSpecs[[i]][[j]][[1]]))
+			enc <- union(enc,unlist(resSpecs[[i]][[j]][[2]]))
+		} else {
+			aaaos <- union(aaaos,unlist(resSpecs[[i]][[j]][[1]]))
+			aaaosc <- union(aaaosc,unlist(resSpecs[[i]][[j]][[2]]))
+		}
+		w <- union(w,unlist(resSpecs[[i]][[j]][[1]]))
+		wc <- union(wc,unlist(resSpecs[[i]][[j]][[2]]))
+	}
+	resSpecsTable[i, europe_north_america := length(en) - 1]
+	resSpecsTable[i, europe_north_america_coords := length(enc) - 1]
+	resSpecsTable[i, africa_antarctica_asia_oceania_south_america := length(aaaos) - 1]
+	resSpecsTable[i, africa_antarctica_asia_oceania_south_america_coords := length(aaaosc) - 1]
+	resSpecsTable[i, world := length(w) - 1]
+	resSpecsTable[i, world_coords := length(wc) - 1]
+	resSpecsTable[i, world_coords_land_and_sea := length(resSpecs[[i]][[8]]) - 1]
+	resSpecsTable[i, seaborne := round(length(setdiff(resSpecs[[i]][[8]],wc))/world_coords,1)]
+}
+# remove myriapod and crustaceen sub-groups
+resSpecsTable <- resSpecsTable[!name %in% c(myriapods, crustaceans)]
+
+# calculate ratio
+resSpecsTable[, ratio := round(europe_north_america / world,2)]
+resSpecsTable[, ratio_coords := round(europe_north_america_coords / world_coords,2)]
+
+# check taxa with large values for seaborne
+resSpecsTable[seaborne > 0.1,c("name","seaborne","ratio","ratio_coords")]
 
 # reorder table
 resSpecsTable[, oriOrder := sapply(resSpecsTable$name, function(x) which(colnames(groupsData) == x)) - 1]
@@ -2184,7 +2574,7 @@ namesDict[, searchName := sub("\\s([[:upper:]]|\\().*", "", searchName)]
 namesDict[!validUTF8(searchName), searchName := iconv(searchName[!validUTF8(searchName)], from = "CP1252", to = "UTF8")]
 Encoding(namesDict$searchName) <- "unknown"
 for (i in seq_len(nrow(substAcc))) {
-	namesDict[, searchName := gsub(substAcc[i, 1], substAcc[i, 2], searchName)]
+	namesDict[, searchName := gsub(substAcc$UTF8[i], substAcc$ASCII[i], searchName, fixed = TRUE)]
 }
 for (i in seq_len(nrow(namesDict))) {
 	if (i %% 100 == 0) print(i)
@@ -2234,7 +2624,7 @@ namesDict[, searchName := gsub("\\s+and\\s.*$", "", searchName)]
 namesDict[!validUTF8(searchName), searchName := iconv(searchName[!validUTF8(searchName)], from = "CP1252", to = "UTF8")]
 Encoding(namesDict$searchName) <- "unknown"
 for (i in seq_len(nrow(substAcc))) {
-	namesDict[, searchName := gsub(substAcc[i, 1], substAcc[i, 2], searchName)]
+	namesDict[, searchName := gsub(substAcc$UTF8[i], substAcc$ASCII[i], searchName, fixed = TRUE)]
 }
 for (i in seq_len(nrow(namesDict))) {
 	if (i %% 100 == 0) print(i)
@@ -2338,8 +2728,8 @@ dat[, name := namesDict[paste(dat$name1, dat$name2)]$nameShort]
 dat <- dat[!is.na(nameShort)]
 
 datSummary <- data.table(
-	nameShort = shortNames, minLength = numeric(), meanLength = numeric(), maxLength = numeric(), nLength = numeric(),
-	minMass = numeric(), meanMass = numeric(), maxMass = numeric(), nMass = numeric()
+	nameShort = shortNames, minLength = NA_real_, meanLength = NA_real_, maxLength = NA_real_, nLength = NA_real_,
+	minMass = NA_real_, meanMass = NA_real_, maxMass = NA_real_, nMass = NA_real_
 )
 i <- 4
 for (i in seq_len(nrow(datSummary))) {
@@ -2478,7 +2868,7 @@ resAll <- list()
 for (i in seq_len(nrow(names))) resAll[[i]] <- NA
 
 # load gathered data
-if ("resAllTemp.RData" %in% list.files()) load("resAllTemp.RData")
+if ("resBiL.RData" %in% list.files()) load("resBiL.RData")
 table(!sapply(resAll, is.atomic)) # number of done searches
 
 # gather information from last runs to store in one variable
@@ -2495,7 +2885,7 @@ if (length(resFiles) > 0) {
 			resAll[[resFiles[i]]] <- values
 		}
 	}
-	save(resAll, file = "resAllTemp.RData")
+	save(resAll, file = "resBiL.RData")
 	invisible(file.remove(paste0("temp/", list.files("temp"))))
 }
 
@@ -2542,14 +2932,14 @@ range(resTable$year)
 fwrite(resTable, file = "groupsLitOccurrences.txt")
 
 trials <- 3
-# do taxonomic classification using term variable
+# do taxonomic classification using term variable, i.e. scientific names
 # manual selection is necessary in some cases due to ambiguity of scientific names
 # provided
 resVars <- c("canonicalName", "authorship", "family", "order", "class", "kingdom", "phylum", "rank")
 resTax <- data.table(term = names$term)
 resTax[, (resVars) := character()]
 
-i <- 15
+i <- 2
 for (i in which(is.na(resTax$canonicalName))) {
 	if (i %% 50 == 0) print(i)
 	for (j in seq_len(trials)) {
@@ -2571,7 +2961,7 @@ for (i in which(is.na(resTax$canonicalName))) {
 		myNum <- as.numeric(readline(prompt = "Enter number: "))
 		res <- resTable[myNum]
 	}
-	if (!is.null(dim(res)) && nrow(res) > 0) {
+	if (is.list(res) || (!is.null(dim(res)) && nrow(res) > 0)) {
 		if (all(c("scientificName", "canonicalName") %in% names(res))) {
 			res$authorship <- trimws(sub(res$canonicalName, "", res$scientificName))
 		}
@@ -2622,7 +3012,7 @@ for (i in which(is.na(resVern$canonicalName))) {
 		# substitute non-ASCII characters
 		for (k in seq_len(nrow(substAcc))) {
 			resTable[, vernacularNames :=
-				gsub(substAcc[k, 1], substAcc[k, 2], vernacularNames)]
+				gsub(substAcc$UTF8[k], substAcc$ASCII[k], vernacularNames, fixed = TRUE)]
 		}
 		# remove hyphens
 		resTable[, vernacularNames := gsub("-", " ", tolower(vernacularNames))]
@@ -2682,8 +3072,6 @@ colnames(resTax) <- paste0("resTax_", colnames(resTax))
 colnames(resVern) <- paste0("resVern_", colnames(resVern))
 names <- cbind(names, resTax)
 names <- cbind(names, resVern)
-colnames(resTax <- sub("resTax_", "", colnames(resTax)))
-colnames(resVern <- sub("resVern_", "", colnames(resVern)))
 
 # check which group names can be found in the rows of the data
 res <- matrix(NA, nrow = nrow(names), ncol = nrow(groupsMeta))
@@ -2705,7 +3093,7 @@ names[
 ]
 names[checkSums < 1]
 
-# create special column for ambiguous cases that contains the group the name
+# create special column for ambiguous cases that contain the group the name
 # is classified into
 names[, group := character()]
 probs <- which(checkSums != 1)
@@ -2773,7 +3161,7 @@ try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), s
 rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
 remDr <- rD[["client"]]
 
-res <- data.table(name = groupsMeta$name, gLines = numeric(), wLines = numeric())
+res <- data.table(name = groupsMeta$name, gLines = NA_real_, wLines = NA_real_)
 i <- 1
 for (i in seq_len(nrow(groupsMeta))) {
 	remDr$navigate(paste0("https://www.google.com/search?client=firefox-b-d&q=", groupsMeta$name[i]))
@@ -2846,9 +3234,9 @@ authors <- fread("authorData.txt")
 # compare size data
 size$name == sizeB$name
 par(mfrow = c(1, 2))
-plot(sizeB$`minLength` ~ I(10^size$`min_body_length_(mm)` / 1000))
+plot(sizeB$`minLength` ~ I(10^size$`min_body_length` / 1000))
 abline(0, 1)
-plot(sizeB$`maxLength` ~ I(10^size$`max_body_length_(mm)` / 1000))
+plot(sizeB$`maxLength` ~ I(10^size$`max_body_length` / 1000))
 abline(0, 1)
 rm(sizeB)
 colnames(size) <- gsub("\\([^\\(\\)]+\\)", "", colnames(size))
@@ -2857,8 +3245,8 @@ colnames(size) <- gsub("^_|_$", "", gsub("_{2,}", "_", colnames(size)))
 # as Brose's data
 
 # compare public interest data
-str(interestOcc)
-str(interestTax)
+# str(interestOcc)
+# str(interestTax)
 litOccs <- colSums(interestOcc[, -"year"], na.rm = TRUE)
 litOccs <- data.table(sum = litOccs, name = interestTax$group)
 litOccs <- tapply(litOccs$sum, litOccs$name, sum)
@@ -2873,7 +3261,6 @@ plot(interest$gHits, log(interest$litOcc))
 interest[, wLines := NULL]
 
 # check author numbers from LifeGate
-colSums(authors[, -"year"])
 par(mfrow = c(1, 1))
 plot(NULL, xlim = range(authors$year), ylim = range(authors[, -"year"]), xlab = "year", ylab = "authors")
 for (i in seq_len(ncol(authors))) {
@@ -2886,7 +3273,7 @@ abline(h = colMeans(authors[, -"year"]), lty = 2)
 authorMeans <- colMeans(authors[, -"year"])
 authorVar <- sapply(authors[, -"year"], var)
 authorCv <- authorVar^.5 / authorMeans
-colSums(authors[, -"year"])
+# colSums(authors[, -"year"])
 
 # calculate relationship between hypothetical total author number and mean per year for
 # hypothetical author numbers
@@ -3366,7 +3753,7 @@ model1 <- "
 fit1 <- bsem(model1, data = datn)
 summary(fit1)
 #Statistic                                 MargLogLik         PPP
-#Value                                       -390.046       0.505
+#Value                                       -382.500       0.617
 #
 #Parameter Estimates:
 #		
@@ -3374,30 +3761,30 @@ summary(fit1)
 #		Regressions:
 #		Estimate  Post.SD pi.lower pi.upper     Rhat    Prior       
 #L ~                                                                          
-#		C          (a)    0.357    0.146    0.076    0.644    0.999    normal(0,10)
+#		C          (a)    0.380    0.142    0.103    0.657    0.999    normal(0,10)
 #A ~                                                                          
-#		L          (b)    0.365    0.058    0.252    0.479    0.999    normal(0,10)
-#C          (c)    0.743    0.058    0.626    0.861    1.000    normal(0,10)
+#		L          (b)    0.339    0.054    0.232    0.447    0.999    normal(0,10)
+#C          (c)    0.765    0.056    0.653    0.878    0.999    normal(0,10)
 #DVVar ~                                                                      
-#		A          (d)   -0.114    0.075   -0.266    0.040    1.000    normal(0,10)
-#O          (e)   -0.230    0.075   -0.374   -0.083    0.999    normal(0,10)
+#		A          (d)   -0.115    0.072   -0.255    0.026    0.999    normal(0,10)
+#O          (e)   -0.232    0.073   -0.370   -0.091    1.000    normal(0,10)
 #TT ~                                                                         
-#		B          (f)   -0.429    0.181   -0.782   -0.081    0.999    normal(0,10)
-#A          (g)   -0.382    0.134   -0.644   -0.110    0.999    normal(0,10)
-#O          (h)   -0.157    0.252   -0.634    0.329    1.000    normal(0,10)
-#S         (ii)    0.280    0.148   -0.017    0.571    0.999    normal(0,10)
-#AQ         (j)   -0.022    0.165   -0.357    0.298    0.999    normal(0,10)
-#DVVar      (k)   -0.177    0.279   -0.713    0.370    0.999    normal(0,10)
+#		B          (f)   -0.406    0.178   -0.746   -0.039    1.000    normal(0,10)
+#A          (g)   -0.367    0.130   -0.625   -0.115    1.000    normal(0,10)
+#O          (h)   -0.091    0.237   -0.580    0.378    1.000    normal(0,10)
+#S         (ii)    0.261    0.148   -0.029    0.547    1.000    normal(0,10)
+#AQ         (j)   -0.088    0.154   -0.378    0.226    1.001    normal(0,10)
+#DVVar      (k)   -0.185    0.278   -0.735    0.358    1.001    normal(0,10)
 #MP ~                                                                         
-#		B          (l)    0.330    0.208   -0.084    0.745    1.000    normal(0,10)
-#A          (m)    0.127    0.155   -0.174    0.439    0.999    normal(0,10)
-#O          (n)    0.004    0.257   -0.501    0.531    1.000    normal(0,10)
-#S          (o)   -0.199    0.166   -0.527    0.126    1.001    normal(0,10)
-#AQ         (p)    0.096    0.181   -0.256    0.465    1.000    normal(0,10)
-#TT         (q)    0.782    0.177    0.422    1.132    1.001    normal(0,10)
+#		B          (l)    0.532    0.182    0.167    0.874    1.000    normal(0,10)
+#A          (m)    0.111    0.148   -0.174    0.400    1.000    normal(0,10)
+#O          (n)    0.081    0.214   -0.344    0.500    1.000    normal(0,10)
+#S          (o)   -0.228    0.151   -0.530    0.067    1.000    normal(0,10)
+#AQ         (p)    0.158    0.158   -0.157    0.474    1.000    normal(0,10)
+#TT         (q)    0.848    0.166    0.528    1.173    1.000    normal(0,10)
 #EF ~                                                                         
-#		TT         (r)    0.024    0.121   -0.212    0.261    1.000    normal(0,10)
-#MP         (s)    0.710    0.121    0.474    0.945    1.000    normal(0,10)
+#		TT         (r)    0.025    0.118   -0.210    0.256    0.999    normal(0,10)
+#MP         (s)    0.710    0.121    0.478    0.946    1.001    normal(0,10)
 
 # fitMeasures(fit1)
 # plot(fit1,plot.type = "trace")
@@ -3407,9 +3794,9 @@ summary(fit1)
 postSamples1 <- standardizedPosterior(fit1,type="std.lv")
 len1 <- sum(fit1@ParTable$op == "~")
 
-pdf("Model 1 coefficients.pdf", width=11.7,height=8.3)
+# pdf("Model 1 coefficients.pdf", width=11.7,height=8.3)
 par(mfrow=c(1,1))
-plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7.5),xlab="",ylab="")
+plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7.75),xlab="",ylab="",cex.lab=1.5,cex.axis=1.5)
 xseq <- seq(-1.5,1.5,l=500)
 for (i in seq_len(len1)){
 	# normal distribution values
@@ -3422,15 +3809,14 @@ for (i in seq_len(len1)){
 	lines(xseq,yseq)
 	# show variable name
 	text(fit1@ParTable$est[i], 1 / (fit1@ParTable$se[i] * sqrt(2 * pi))* 1.05,fit1@ParTable$label[i],font=2)
-
 }
-dev.off()
+# dev.off()
 
 # remove those coefficients that have zero within 90% PI
 testPI <- sapply(seq_len(sum(fit1@ParTable$label != "")),function(x) qnorm(c(.1,.9),fit1@ParTable$est[x],fit1@ParTable$se[x]))
 colnames(testPI) <- fit1@ParTable$label[fit1@ParTable$label != ""]
 testPI # those that include zero in this interval need to be removed
-# h, j, k, m, n, o, p, r
+# h, j, k, m, n, p, r
 
 model2 <- "
 	# relationships between measured variables
@@ -3438,14 +3824,14 @@ model2 <- "
 	A ~  b * L + c * C
 	DVVar ~  d * A + e * O
 	TT ~ f * B + g * A + ii * S
-	MP ~ l * B + q * TT
+	MP ~ l * B + o * S + q * TT
 	EF ~ s * MP
 "
 
 fit2 <- bsem(model2, data = datn)
 summary(fit2)
 #Statistic                                 MargLogLik         PPP
-#Value                                             NA       0.522
+#Value                                       -357.786       0.611
 #
 #Parameter Estimates:
 #		
@@ -3453,22 +3839,23 @@ summary(fit2)
 #		Regressions:
 #		Estimate  Post.SD pi.lower pi.upper     Rhat    Prior       
 #L ~                                                                          
-#		C          (a)    0.357    0.144    0.067    0.647    1.000    normal(0,10)
+#		C          (a)    0.383    0.141    0.105    0.650    0.999    normal(0,10)
 #A ~                                                                          
-#		L          (b)    0.365    0.059    0.252    0.480    1.000    normal(0,10)
-#C          (c)    0.743    0.057    0.626    0.852    1.000    normal(0,10)
+#		L          (b)    0.339    0.054    0.229    0.446    1.000    normal(0,10)
+#C          (c)    0.764    0.053    0.657    0.871    1.000    normal(0,10)
 #DVVar ~                                                                      
-#		A          (d)   -0.114    0.074   -0.264    0.034    1.000    normal(0,10)
-#O          (e)   -0.229    0.074   -0.373   -0.082    1.000    normal(0,10)
+#		A          (d)   -0.114    0.073   -0.256    0.034    1.000    normal(0,10)
+#O          (e)   -0.227    0.071   -0.368   -0.088    1.000    normal(0,10)
 #TT ~                                                                         
-#		B          (f)   -0.355    0.125   -0.608   -0.111    0.999    normal(0,10)
-#A          (g)   -0.344    0.121   -0.574   -0.098    1.000    normal(0,10)
-#S         (ii)    0.241    0.126   -0.005    0.492    0.999    normal(0,10)
+#		B          (f)   -0.359    0.129   -0.614   -0.104    1.000    normal(0,10)
+#A          (g)   -0.322    0.128   -0.575   -0.079    0.999    normal(0,10)
+#S         (ii)    0.246    0.124    0.011    0.484    1.000    normal(0,10)
 #MP ~                                                                         
-#		B          (l)    0.342    0.151    0.042    0.635    0.999    normal(0,10)
-#TT         (q)    0.665    0.152    0.356    0.963    1.000    normal(0,10)
+#		B          (l)    0.446    0.144    0.168    0.724    1.001    normal(0,10)
+#S          (o)   -0.203    0.134   -0.474    0.054    0.999    normal(0,10)
+#TT         (q)    0.787    0.149    0.504    1.082    1.001    normal(0,10)
 #EF ~                                                                         
-#		MP         (s)    0.723    0.105    0.517    0.932    1.000    normal(0,10)
+#		MP         (s)    0.723    0.106    0.514    0.923    1.000    normal(0,10)
 
 # fitMeasures(fit2)
 # plot(fit2,plot.type = "trace")
@@ -3501,7 +3888,7 @@ load("temp.RData")
 
 #################################################
 
-# 10 Source data from BiL explorer#################################################################
+# 10 Compare species numbers between LifeGate, GBIF, and CoL#######################################
 nextScript <- NULL
 
 # load in libraries
@@ -3623,4 +4010,477 @@ dat[(!is.na(ratioGBIF) & (ratioGBIF > 1.25 | ratioGBIF < 0.75)) & (!is.na(ratioC
 # Several taxonomic groups are much less in LifeGate (Foraminifera, Mollusca, Cnidaria).
 # Several taxonomic groups are much more in LifeGate (Bryophyta, Lepidoptera).
 
+# 10 Get Lepidoptera and Bryophyta names from GBIF and CoL#########################################
+nextScript <- NULL
 
+# load in libraries
+library(data.table) # handle large datasets
+library(RSelenium) # for web scraping
+
+# clean workspace
+rm(list = ls())
+
+# set working directory
+setwd(paste0(.brd, "taxon description dates"))
+
+# get author name comparison function
+source(paste0(.brd,"taxonomy/taxonomy help functions.R"))
+
+# close all open ports
+try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+
+rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
+remDr <- rD[["client"]]
+
+# function to extract names data from CoL
+CoLGetLowerRankNames <- function(taxon, taxonID, targetRank){
+	print(taxon)
+	# open search page
+	remDr$navigate(paste0("https://www.catalogueoflife.org/data/search?TAXON_ID=",
+		taxonID,"&extinct=false&extinct=&facet=rank&facet=issue&facet=status&facet=nomStatus&facet=nameType&facet=field&facet=authorship&facet=extinct&facet=environment&limit=10&offset=0&rank=",
+		targetRank,"&status=accepted"))
+	Sys.sleep(4) # let the page build
+	# extract number of names
+	resNum <- remDr$findElements(using = "class", value = "ant-col-12")
+	for (j in seq_along(resNum)){
+		namesNum <- resNum[[j]]$getElementAttribute("innerHTML")
+		if (grepl("results: ",namesNum)){
+			namesNum <- as.numeric(gsub("\\D","",namesNum))
+		}
+	}
+	# calculate number of iterations for extraction
+	resPages <- ceiling(namesNum/100)
+	# create data.table for data
+	res <- data.table(id=seq_len(namesNum),name = NA_character_,authors=NA_character_,year=NA_real_,authorsInBrackets=NA_character_,yearInBrackets=NA_real_,taxonID=NA_character_)
+	# collect species names
+	options(scipen = 999) # make sure large numbers are shown as numbers
+	for (j in seq_len(resPages)){
+		remDr$navigate(paste0("https://www.catalogueoflife.org/data/search?TAXON_ID=",
+			taxonID,"&extinct=false&extinct=&facet=rank&facet=issue&facet=status&facet=nomStatus&facet=nameType&facet=field&facet=authorship&facet=extinct&facet=environment&limit=100&offset=",
+			(j-1)*100,"&rank=",
+			targetRank,"&status=accepted"))
+		print(paste0(j,"/",resPages," - ",Sys.time()))
+		repeat{
+			Sys.sleep(1) # let the page build
+			nameLinks <- remDr$findElements(using = "tag", value = "a")
+			if (j < resPages){
+				if (length(nameLinks) > 300) break
+			} else {
+				if (length(nameLinks) > 3 * namesNum%%100) break
+			}
+		}
+		l <- 0
+		for (k in seq_along(nameLinks)){
+			# get names only
+			potName <- nameLinks[[k]]$getElementAttribute("outerHTML")[[1]]
+			if (grepl("<i>",potName)){
+				l <- l + 1
+				# get taxon ID
+				res[(j-1) * 100 + l, taxonID := sub("\".*","",sub(".*taxon/","",potName))]
+				potName <- sub("</a>","",sub(".*(?=<i>)","",potName,perl=TRUE))
+				res[(j-1) * 100 + l, name := sub("<i>","",sub("</i>.*", "", potName))]
+				potName <- gsub("\\]|\\[","",potName)
+				if (grepl("\\(",potName)){
+					temp <- regmatches(potName,regexpr("\\(.*\\)",potName))
+					temp <- gsub("\\(|\\)","",temp)
+					res[(j-1) * 100 + l, authorsInBrackets := sub(",\\s\\d+\\s?$","", temp)]
+					res[(j-1) * 100 + l, yearInBrackets := as.numeric(gsub("\\D", "", temp))]
+					potName <- gsub("\\(.*\\)","",potName)
+				}
+				res[(j-1) * 100 + l, authors := sub(",\\s\\d+\\s?$","",sub(".*</i>", "", potName))]
+				res[(j-1) * 100 + l, year := as.numeric(gsub("\\D", "", potName))]
+			}
+		}
+	}
+	return(res)
+}
+# Problem: CoL has a maximum offset of 100000, which means that not all Lepidoptera species can be retrieved 
+# using the species parameter. Therefore, genera have to be retrieved first.
+
+#resBryo <- CoLGetLowerRankNames("Bryophyta","BJ5TM","species")
+#fwrite(resBryo,file="Bryophytes.gz")
+
+#resLepiGen <- CoLGetLowerRankNames("Lepidoptera genera","CB2MR","genus")
+#fwrite(resLepiGen,file="Lepidoptera genera.gz")
+
+# get Lepidoptera species from CoL
+#genera <- fread("Lepidoptera genera.gz") # results from old trial (i.e. "Lepidoptera","CB2MR","species")
+#missingGenera <- genera[name > "Monoctenia"]
+#
+#for (i in seq_len(nrow(missingGenera))){
+#	resTemp <- CoLGetLowerRankNames(missingGenera[i]$name,missingGenera[i]$taxonID,"species")
+#	fwrite(resTemp,file=paste0(missingGenera[i]$name,".gz"))
+#}
+
+# get everything from GBIF
+# While the below code should work, it does not, because GBIF has an offset limit of 10000.
+# However, I was able to download some data here https://www.checklistbank.org/.
+# Also the CoL data can conveniently be downloaded there :P.
+
+#usageKey <- readLines("https://api.gbif.org/v1/species/match?name=Lepidoptera")
+#usageKey <- sub(".*:","",sub(",.*","",usageKey))
+#namesNum <- readLines(paste0("https://api.gbif.org/v1/species/search?datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c&rank=SPECIES&higherTaxonKey=",
+#	usageKey,"&status=ACCEPTED&limit=1&offset=0"))
+#namesNum <- as.numeric(sub(",.*","",sub(".*count\":","",namesNum)))
+## calculate number of iterations for extraction
+#resPages <- ceiling(namesNum/1000)
+## create data.table for data
+#resTable <- data.table(id=seq_len(namesNum),name=NA_character_,author=NA_character_,year=NA_real_,authorsInBrackets=NA_character_,yearInBrackets=NA_real_,nubKey=NA_real_)
+## extract data
+#for (i in seq_len(resPages)){
+#	print(i)
+#	res <- readLines(paste0("https://api.gbif.org/v1/species/search?datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c&rank=SPECIES&higherTaxonKey=",
+#		usageKey,"&status=ACCEPTED&limit=1000&offset=",
+#		(i-1)*1000))
+#	res <- strsplit(res,split="\"key\":\\d+")[[1]][-1]
+#	nubKeys <- as.numeric(gsub("\\D","",regmatches(res,regexpr("\"nubKey\":\\d+",res))))
+#	resTable[(i-1)*1000+1:1000, nubKey := nubKeys]
+#	species <- sub("\"$","",sub("\"species\":\"","",regmatches(res,regexpr("\"species\":\"[^\"]+\"",res))))
+#	resTable[(i-1)*1000+1:1000, name := species]	
+#	authors <- sub("\"$","",sub("\"authorship\":\"","",regmatches(res,regexpr("\"authorship\":\"[^\"]*\"",res))))
+#	resTable[(i-1)*1000+1:1000, author := authors]
+#	years <- as.numeric(gsub("\\D","",sub("\"$","",sub("\"authorship\":\"","",regmatches(res,regexpr("\"authorship\":\"[^\"]*\"",res))))))
+#	resTable[(i-1)*1000+1:1000, year := years]	
+#}
+
+# Check downloads
+
+# Lepidoptera
+LepGBIF <- fread("Lepidoptera GBIF/nameUsage.tsv")
+table(LepGBIF$`col:rank`)
+table(LepGBIF$`col:status`)
+LepGBIF <- LepGBIF[`col:rank`=="species"]
+LepGBIF[, name := `col:scientificName`]
+LepGBIF[, authors := `col:authorship`]
+LepGBIF[, fullName := trimws(paste(name,authors))]
+LepGBIF[, match := 0]
+LepGBIF[, yearMatch := numeric()]
+table(LepGBIF$match)
+
+LepCoL <- fread("Lepidoptera CoL/nameUsage.tsv")
+table(LepCoL$`col:rank`)
+table(LepCoL$`col:status`)
+LepCoL <- LepCoL[`col:rank`=="species"]
+LepCoL[, name := `col:scientificName`]
+LepCoL[, authors := `col:authorship`]
+LepCoL[, fullName := trimws(paste(name,authors))]
+LepCoL[, match := 0]
+LepCoL[, yearMatch := numeric()]
+table(LepCoL$match)
+
+LepCoL[fullName %in% LepGBIF$fullName, match := 4]
+LepGBIF[fullName %in% LepCoL$fullName, match := 4]
+
+# check differences
+for (i in seq_len(nrow(LepGBIF))){
+	if (LepGBIF$match[i] < 1){
+		if (LepGBIF$name[i] %in% LepCoL$name){
+			LepGBIF[i,match := 1]
+			temp <- LepCoL[name == LepGBIF$name[i]]
+			tempYear1 <- min(as.numeric(regmatches(LepGBIF$authors[i],gregexpr("\\d{4}",LepGBIF$authors[i]))[[1]]))
+			tempYear2 <- regmatches(temp$authors,gregexpr("\\d+",temp$authors))
+			tempYear2 <- sapply(tempYear2,function(x) min(as.numeric(x)))
+			author1 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",LepGBIF$authors[i])
+			author2 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",temp$authors)
+			#print(paste(author1,author2))
+			resAuthors <- sapply(author2,function(x)sum(authorMatch(author1,x)))
+			#print(resAuthors)
+			if (author1 == "" || all(author2 == "")){
+				LepGBIF[i, match := 4]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					LepGBIF[i, yearMatch := 1] 
+				} else {
+					LepGBIF[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors) > 4/3) {
+				LepGBIF[i, match := 3]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					LepGBIF[i, yearMatch := 1] 
+				} else {
+					LepGBIF[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors) > 2/3) {
+				LepGBIF[i, match := 2]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					LepGBIF[i, yearMatch := 1] 
+				} else {
+					LepGBIF[i, yearMatch := 0]
+				}
+			} else {
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					LepGBIF[i, yearMatch := 1] 
+				} else {
+					LepGBIF[i, yearMatch := 0]
+				}
+			}
+		}	
+	}
+}
+for (i in seq_len(nrow(LepCoL))){
+	if (LepCoL$match[i] < 1){
+		if (LepCoL$name[i] %in% LepGBIF$name){
+			LepCoL[i,match := 1]
+			temp <- LepGBIF[name == LepCoL$name[i]]
+			tempYear1 <- min(as.numeric(regmatches(LepCoL$authors[i],gregexpr("\\d{4}",LepCoL$authors[i]))[[1]]))
+			tempYear2 <- regmatches(temp$authors,gregexpr("\\d+",temp$authors))
+			tempYear2 <- sapply(tempYear2,function(x) min(as.numeric(x)))
+			author1 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",LepCoL$authors[i])
+			author2 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",temp$authors)
+			#print(paste(author1,author2))
+			resAuthors <- sapply(author2,function(x)sum(authorMatch(author1,x)))
+			#print(resAuthors)
+			if (author1 == "" || all(author2 == "")){
+				LepCoL[i, match := 4]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					LepCoL[i, yearMatch := 1] 
+				} else {
+					LepCoL[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors,na.rm=TRUE) > 4/3) {
+				LepCoL[i, match := 3]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					LepCoL[i, yearMatch := 1] 
+				} else {
+					LepCoL[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors,na.rm=TRUE) > 2/3) {
+				LepCoL[i, match := 2]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					LepCoL[i, yearMatch := 1] 
+				} else {
+					LepCoL[i, yearMatch := 0]
+				}
+			} else {
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					LepCoL[i, yearMatch := 1] 
+				} else {
+					LepCoL[i, yearMatch := 0]
+				}
+			}
+		}	
+	}
+}
+table(LepGBIF$match)
+table(LepCoL$match)
+table(LepGBIF$match,LepGBIF$yearMatch)
+table(LepCoL$match,LepCoL$yearMatch)
+
+# create combined table
+str(LepGBIF)
+table(LepGBIF[LepGBIF$authors == ""]$match)
+table(LepCoL[LepCoL$authors == ""]$match)
+
+LepCoL[, database := "CoL"]
+LepGBIF[, database := "GBIF"]
+Lep <- rbind(LepGBIF,LepCoL,fill=TRUE)
+
+Lep[, authorsNoYear := gsub("\\d{4}","",authors)]
+Lep[, authorsNoYear := gsub(", (\\[-\\])?\\)",")",authorsNoYear)]
+Lep[, authorsNoYear := sub(", \\[\\]","",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\s\\)",")",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\(\\s","(",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\(\\[","(",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\]\\)",")",authorsNoYear)]
+Lep[, authorsNoYear := gsub(", -\\)",")",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\s&\\)",")",authorsNoYear)]
+Lep[, authorsNoYear := gsub("(\\s*,\\s*)*$","",authorsNoYear)]
+Lep[, authorsNoYear := gsub("\\s{2,}"," ",authorsNoYear)]
+Lep[,year := as.numeric(gsub("\\D","",authors))]
+Lep[year > 2024, year := as.numeric(substr(year,1,4))]
+Lep <- Lep[is.na(year) | year <= 2024]
+
+table(Lep[grepl("\\([^A-Za-z]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Lep[grepl("\\[[^A-Za-z]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Lep[grepl("[^A-Za-z\\.]\\)",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Lep[grepl("[^A-Za-z\\.]\\]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+
+setorder(Lep, name, authors)
+colnames(Lep)
+setcolorder(Lep,c(colnames(Lep)[1:8],c("authorsNoYear","year","fullName","database","match","yearMatch")))
+Lep[1:3]
+fwrite(Lep,file ="Lepidoptera GBIF and CoL.csv")
+
+# Bryophyta
+BryoGBIF <- fread("Bryophyta GBIF/nameUsage.tsv")
+table(BryoGBIF$`col:rank`)
+table(BryoGBIF$`col:status`)
+BryoGBIF <- BryoGBIF[`col:rank`=="species"]
+BryoGBIF[, name := `col:scientificName`]
+BryoGBIF[, authors := `col:authorship`]
+BryoGBIF[, fullName := trimws(paste(name,authors))]
+BryoGBIF[, match := 0]
+BryoGBIF[, yearMatch := numeric()]
+
+BryoCoL <- fread("Bryophyta CoL/nameUsage.tsv")
+table(BryoCoL$`col:rank`)
+table(BryoCoL$`col:status`)
+BryoCoL <- BryoCoL[`col:rank`=="species"]
+BryoCoL[, name := `col:scientificName`]
+BryoCoL[, authors := `col:authorship`]
+BryoCoL[, fullName := trimws(paste(name,authors))]
+BryoCoL[, match := 0]
+BryoCoL[, yearMatch := numeric()]
+
+BryoCoL[fullName %in% BryoGBIF$fullName, match := 4]
+BryoGBIF[fullName %in% BryoCoL$fullName, match := 4]
+table(BryoGBIF$match)
+table(BryoCoL$match)
+
+# check differences
+for (i in seq_len(nrow(BryoGBIF))){
+	if (BryoGBIF$match[i] < 1){
+		if (BryoGBIF$name[i] %in% BryoCoL$name){
+			BryoGBIF[i,match := 1]
+			temp <- BryoCoL[name == BryoGBIF$name[i]]
+			tempYear1 <- min(as.numeric(regmatches(BryoGBIF$authors[i],gregexpr("\\d{4}",BryoGBIF$authors[i]))[[1]]))
+			tempYear2 <- regmatches(temp$authors,gregexpr("\\d+",temp$authors))
+			tempYear2 <- sapply(tempYear2,function(x) min(as.numeric(x)))
+			author1 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",BryoGBIF$authors[i])
+			author2 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",temp$authors)
+			#print(paste(author1,author2))
+			resAuthors <- sapply(author2,function(x)sum(authorMatch(author1,x)))
+			#print(resAuthors)
+			if (author1 == "" || all(author2 == "")){
+				BryoGBIF[i, match := 4]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					BryoGBIF[i, yearMatch := 1] 
+				} else {
+					BryoGBIF[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors) > 4/3) {
+				BryoGBIF[i, match := 3]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					BryoGBIF[i, yearMatch := 1] 
+				} else {
+					BryoGBIF[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors) > 2/3) {
+				BryoGBIF[i, match := 2]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					BryoGBIF[i, yearMatch := 1] 
+				} else {
+					BryoGBIF[i, yearMatch := 0]
+				}
+			} else {
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					BryoGBIF[i, yearMatch := 1] 
+				} else {
+					BryoGBIF[i, yearMatch := 0]
+				}
+			}
+		}	
+	}
+}
+for (i in seq_len(nrow(BryoCoL))){
+	if (BryoCoL$match[i] < 1){
+		if (BryoCoL$name[i] %in% BryoGBIF$name){
+			BryoCoL[i,match := 1]
+			temp <- BryoGBIF[name == BryoCoL$name[i]]
+			tempYear1 <- min(as.numeric(regmatches(BryoCoL$authors[i],gregexpr("\\d{4}",BryoCoL$authors[i]))[[1]]))
+			tempYear2 <- regmatches(temp$authors,gregexpr("\\d+",temp$authors))
+			tempYear2 <- sapply(tempYear2,function(x) min(as.numeric(x)))
+			author1 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",BryoCoL$authors[i])
+			author2 <- gsub("\\s*,?\\s*\\(?\\[?\\d{4}\\]?\\)?\\s*,?\\s*","",temp$authors)
+			#print(paste(author1,author2))
+			resAuthors <- sapply(author2,function(x)sum(authorMatch(author1,x)))
+			#print(resAuthors)
+			if (author1 == "" || all(author2 == "")){
+				BryoCoL[i, match := 4]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					BryoCoL[i, yearMatch := 1] 
+				} else {
+					BryoCoL[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors,na.rm=TRUE) > 4/3) {
+				BryoCoL[i, match := 3]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					BryoCoL[i, yearMatch := 1] 
+				} else {
+					BryoCoL[i, yearMatch := 0]
+				}
+			} else if (max(resAuthors,na.rm=TRUE) > 2/3) {
+				BryoCoL[i, match := 2]
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || tempYear2[order(resAuthors, decreasing = TRUE)[1]] == tempYear1){
+					BryoCoL[i, yearMatch := 1] 
+				} else {
+					BryoCoL[i, yearMatch := 0]
+				}
+			} else {
+				if (length(tempYear1) < 1 || all(sapply(tempYear2,length) < 1) || any(tempYear2 == tempYear1)){
+					BryoCoL[i, yearMatch := 1] 
+				} else {
+					BryoCoL[i, yearMatch := 0]
+				}
+			}
+		}	
+	}
+}
+table(BryoGBIF$match)
+table(BryoCoL$match)
+table(BryoGBIF$match,BryoGBIF$yearMatch)
+table(BryoCoL$match,BryoCoL$yearMatch)
+
+# create combined table
+str(BryoGBIF)
+table(BryoGBIF[BryoGBIF$authors == ""]$match)
+table(BryoCoL[BryoCoL$authors == ""]$match)
+
+BryoCoL[, database := "CoL"]
+BryoGBIF[, database := "GBIF"]
+Bryo <- rbind(BryoGBIF,BryoCoL,fill=TRUE)
+
+Bryo[, authorsNoYear := gsub("\\d{4}","",authors)]
+Bryo[, authorsNoYear := gsub(", (\\[-\\])?\\)",")",authorsNoYear)]
+Bryo[, authorsNoYear := sub(", \\[\\]","",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\s\\)",")",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\(\\s","(",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\(\\[","(",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\]\\)",")",authorsNoYear)]
+Bryo[, authorsNoYear := gsub(", -\\)",")",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\s&\\)",")",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("(\\s*,\\s*)*$","",authorsNoYear)]
+Bryo[, authorsNoYear := gsub("\\s{2,}"," ",authorsNoYear)]
+Bryo[, year := as.numeric(gsub("\\D","",authors))]
+Bryo[year > 2024, year := as.numeric(substr(year,1,4))]
+Bryo <- Bryo[is.na(year) | year <= 2024]
+
+table(Bryo[grepl("\\([^A-Za-z]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Bryo[grepl("\\[[^A-Za-z]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Bryo[grepl("[^A-Za-z\\.]\\)",authorsNoYear,perl=TRUE)]$authorsNoYear)
+table(Bryo[grepl("[^A-Za-z\\.]\\]",authorsNoYear,perl=TRUE)]$authorsNoYear)
+
+setorder(Bryo, name, authors)
+colnames(Bryo)
+setcolorder(Bryo,c(colnames(Bryo)[1:8],c("authorsNoYear","year","fullName","database","match","yearMatch")))
+Bryo[1:10]
+fwrite(Bryo,file ="Bryophyta GBIF and CoL.csv")
+
+# 11 Compare checked species numbers for Lepidoptera and Bryophyta#################################
+nextScript <- NULL
+
+# load in libraries
+library(data.table) # handle large datasets
+
+# clear workspace
+rm(list = ls())
+
+# set working directory
+setwd(paste0(.brd, "taxon description dates/Arten pro Jahr beschrieben"))
+
+# get data
+# Lepidoptera
+lep1 <- fread("Arthropoda Insecta Lepidoptera beschriebene Arten pro Jahr.txt")
+lep2 <- fread("Arthropoda Insecta Lepidoptera beschriebene Arten pro Jahr_CoL_GBIF.txt")
+# Bryophyta
+bryo1 <- fread("Bryophyta beschriebene Arten pro Jahr.txt")
+bryo2 <- fread("Bryophyta beschriebene Arten pro Jahr_CoL_GBIF.txt")
+
+# have a look
+plot(NULL,xlim=range(lep1$V1),ylim=c(0,max(lep1$V2,lep2$V2)),xlab="year",ylab="descriptions")
+lines(lep1$V1, lep1$V2, lwd=2)
+lines(lep2$V1, lep2$V2, lwd=2,col="red")
+plot(NULL,xlim=range(bryo1$V1),ylim=c(0,max(bryo1$V2,bryo2$V2)),xlab="year",ylab="descriptions")
+lines(bryo1$V1, bryo1$V2, lwd=2)
+lines(bryo2$V1, bryo2$V2, lwd=2,col="red")
+
+# looks good
