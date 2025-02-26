@@ -1571,9 +1571,14 @@ lines(A1seq, mu, col = "red", lwd = 3)
 # 		k ~ exponential(0.1),
 # 		sigma ~ exponential(1)
 # 	),
-# 	data = datn, chains = 4, log_lik = TRUE
+# 	data = datq, chains = 4, log_lik = TRUE
 # )
+#
+# precis(m2c, depth=2)
 
+# modification of normal distribution with constant tail after maximum
+# mu <- k * 1 / ((2 * 3.141593)^0.5 * a) * (exp(-0.5 * ((A - b) / a)^2) * (A <= b) + (A > b))
+ 
 # Gompertz function: f(x) = k * exp(-a * exp(-b * x))
 
 # predictive prior simulation
@@ -1665,21 +1670,23 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # }
 # coefs[[1]] <- sapply(m$m1, coef)
 # # normal distribution function: f(x) = k * 1 / ((2 * pi)^0.5 * a) * exp(-0.5 * ((x - b) / a)^2)
-# m$m2 <- list()
+#m$m2 <- list()
 #for (i in groupsVec) {
 # 	print(paste0("Normal model ", i, "/", nrow(groupsMeta)))
 #	datn <- list(
 # 		Y = scale(groupsData$year),
 # 		D = cumsum(groupsData[[i + 1]]) / max(cumsum(groupsData[[i + 1]])),
-#		minY = min(scale(groupsData$year)) # make sure max is not reached before max(datn$Y)
+#		# minY = min(scale(groupsData$year)) # make sure max is not reached before max(datn$Y) - DEPRECATED
 # 	)
 #	#datn$minY <- 0 # try to reproduce former results
 # 	m$m2[[i]] <- ulam(
 #		alist(
 # 			D ~ normal(mu, sigma),
-#			# note that + minY ensures the maximum is not reached before present (as in this data,
+#			# note that + minY ensures the maximum is not reached before present, as in this data,
 #           # minY = - max(Y), meaning max(Y) is added to b to ensure it has at least this size
-# 			mu <- (k / ((2 * 3.141593)^0.5 * a) + 1) * exp(-0.5 * ((Y - b + minY) / a)^2),
+# 			#mu <- (k / ((2 * 3.141593)^0.5 * a) + 1) * exp(-0.5 * ((Y - b + minY) / a)^2),
+#			# model specification to account for possible constant slope (no minY needed)
+#			mu <- (k / ((2 * 3.141593)^0.5 * a) + 1) * (exp(-0.5 * ((Y - b) / a)^2) * (Y <= b) + (Y > b)),
 # 			k ~ exponential(1),
 # 			a ~ exponential(1),
 # 			b ~ exponential(1),
@@ -1692,7 +1699,7 @@ for (i in seq(0.1, 0.5, l = 5)) {
 #	#	print(precis(m$m2[[i]])
 #	# 	traceplot(m$m2[[i]],pars=c("k","a","b","sigma"),n_cols=2)
 #}
-#coefs[[2]][,1] <- sapply(m$m2, coef)
+#coefs[[2]] <- sapply(m$m2, coef)
 ## Gompertz function: f(x) = k * exp(-a * exp(-b * x))
 # m$m3 <- list()
 # for (i in groupsVec) {
@@ -1717,12 +1724,11 @@ for (i in seq(0.1, 0.5, l = 5)) {
 # }
 # coefs[[3]] <- sapply(m$m3, coef)
 
-# account for coefficient constraints in normal distribution fit
+# account for coefficient constraints in normal distribution fit - DEPRECATED due to constant function after maximum
 # maximum not before 2017 - add minY to b of coefs[[2]]
 # coefs[[2]][rownames(coefs[[2]]) == "b",] <- coefs[[2]][rownames(coefs[[2]]) == "b",] - min(scale(groupsData$year))
 # maximum not smaller than data - add sqrt(2*pi)*a to k of coefs[[2]]
 # coefs[[2]][rownames(coefs[[2]]) == "k",] <- coefs[[2]][rownames(coefs[[2]]) == "k",] + sqrt(2*pi)*coefs[[2]][rownames(coefs[[2]]) == "a",]
-
 load("models3.RData")
 
 # plot all groups separately with cumulative relative values and model approximations
@@ -1735,7 +1741,7 @@ load("models3.RData")
 polyYear <- c(groupsData$year, rev(groupsData$year))
 zeros <- rep(0, nrow(groupsData))
 
-i <- 7
+i <- 24
 par(parBackup)
 # pdf("description history fits_new.pdf", width = 11.7, height = 8.3)
 # plot all groups separately with all approximation functions
@@ -1765,13 +1771,13 @@ for (i in groupsVec) {
 			mu <- link(m[[j]][[i]], data = list(Y = standardize(xseq), minY = min(scale(xseq))))
 		}
 		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = j + 1)
-		
 	}
 	legend("bottomright",
 		legend = c("custom Bertalanffy", "normal distribution", "Gompertz"),
 		lwd = 3, col = 2:4, bg = "white"
 	)
 }
+
 # plot all on one page only showing the normal distribution approximation
 par(oma = c(5, 5, 1, 1))
 par(mar = c(0, 0, 0, 0))
@@ -2113,7 +2119,7 @@ for (i in groupsVec) {
 # dev.off()
 
 # get a measure of decrease in velocity due to idiosyncratic events (wars, other crisis)
-# pdf("description pace anomalies.pdf",width=11.7,height=8.3)
+#pdf("description pace anomalies.pdf",width=11.7,height=8.3)
 plot(NULL, ylim= c(0,1.9), xlim= range(groupsData$year), type="l", xlab="year", ylab="", yaxt = "n")
 numMax <- max(rowSums(speeds == -1),rowSums(speeds == 1))
 axis(2,c(0,0.5,1,1.5 + c(0,1/6,-1/6,1/3,-1/3)),c(0,0.5,1,0,numMax/2,numMax/2,numMax,numMax))
@@ -2157,8 +2163,8 @@ for (i in seq_len(ncol(groupsData) - 1)){
 	}
 }
 abline(h=1.5,lty=2)
-for (i in seq_len(nrow(speeds))){
-	if (i > 5){
+for (i in seq_len(nrow(speeds) - 10)){
+	if (i > 10){
 		segments(groupsData$year[i],1.5,groupsData$year[i],1.5 - sum(speeds[i,] == -1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3,lwd=1.1)
 		segments(groupsData$year[i],1.5,groupsData$year[i],1.5 + sum(speeds[i,] == 1)/max(rowSums(speeds == -1),rowSums(speeds == 1))/3,lwd=1.1)
 		if (sum(speeds[i,] == -1) > 0.4 * max(rowSums(speeds == -1),rowSums(speeds == 1)) 
@@ -2171,7 +2177,7 @@ for (i in seq_len(nrow(speeds))){
 		}
 	}
 }
-# dev.off()
+#dev.off()
 
 # 5 Source distribution data from GBIF#############################################################
 nextScript <- NULL
@@ -3214,7 +3220,6 @@ groupsTotal <- colSums(groupsData[, -"year"])
 
 # groups size classification, soil/endoparasitic vs free/non-parasitic, aquatic vs terrestrial
 size <- data.table(read.xlsx("groupsPredictors.xlsx", sep.names = "_"))
-
 # alternative group sizes from Brose et al.
 sizeB <- fread("groupsLengthSize.txt")
 
@@ -3224,7 +3229,6 @@ regions <- fread("groupsOccurrences.txt")
 # public interest data from BiL
 interestOcc <- fread("groupsLitOccurrences.txt")
 interestTax <- fread("groupsLitTaxonomy.txt")
-
 # public interest alternative sources
 interest <- fread("groupsWebOccurrences.txt") # will include other interest data later on
 
@@ -3232,11 +3236,11 @@ interest <- fread("groupsWebOccurrences.txt") # will include other interest data
 authors <- fread("authorData.txt")
 
 # compare size data
-size$name == sizeB$name
+# all(size$name == sizeB$name)
 par(mfrow = c(1, 2))
-plot(sizeB$`minLength` ~ I(10^size$`min_body_length` / 1000))
+plot(sizeB$`minLength` ~ I(10^size$`min_body_length` / 1000), ylab="size Brose", xlab="size Wikipedia")
 abline(0, 1)
-plot(sizeB$`maxLength` ~ I(10^size$`max_body_length` / 1000))
+plot(sizeB$`maxLength` ~ I(10^size$`max_body_length` / 1000), ylab="size Brose", xlab="size Wikipedia")
 abline(0, 1)
 rm(sizeB)
 colnames(size) <- gsub("\\([^\\(\\)]+\\)", "", colnames(size))
@@ -3254,11 +3258,11 @@ litOccs <- litOccs[names(litOccs) != ""]
 interest[, litOcc := 0]
 interest[sapply(names(litOccs), function(x) which(interest$name == x)), litOcc := litOccs]
 plot(interest[, -"name"])
-plot(interest$gHits, interest$litOcc)
-plot(interest$gHits, log(interest$litOcc))
+plot(interest$gHits, interest$litOcc, ylab="Google Hits", xlab="Public interest")
+plot(interest$gHits, log(interest$litOcc), ylab="log(Google Hits)", xlab="Public interest")
+interest[, wLines := NULL]
 # Google hits and log(literature occurrences) show similar patterns,
 # while wikipedia lines do not
-interest[, wLines := NULL]
 
 # check author numbers from LifeGate
 par(mfrow = c(1, 1))
@@ -3273,7 +3277,6 @@ abline(h = colMeans(authors[, -"year"]), lty = 2)
 authorMeans <- colMeans(authors[, -"year"])
 authorVar <- sapply(authors[, -"year"], var)
 authorCv <- authorVar^.5 / authorMeans
-# colSums(authors[, -"year"])
 
 # calculate relationship between hypothetical total author number and mean per year for
 # hypothetical author numbers
@@ -3304,6 +3307,7 @@ authorCv <- authorVar^.5 / authorMeans
 # mean(res$auths/res$authorMeans)
 # plot(res$auths~res$authorMeans)
 # abline(reg)
+#
 # total author numbers and mean authors per year are always highly correlated,
 # independent of the actual distribution of authors across the time period
 # the actual publication number per author is 1/5 per year (see script 2),
@@ -3317,60 +3321,57 @@ authorCv <- authorVar^.5 / authorMeans
 # IPNI also has some bad data included and may therefore be too high, and author numbers for mosses are too low
 # anyway, as this would only result in a linear transformation of the data, it is not needed
 
-# create a common data.table
+# create a joint data.table
 dat <- data.table(
-	name = groupsMeta$name,
-	currDesc = groupsTotal,
-	meanAuthors = authorMeans,
-	varAuthors = authorVar,
-	cvAuthors = authorCv,
-	authorFinal = groupsMeta$finalAuthorData,
-	litOcc = interest$litOcc,
-	gHits = interest$gHits,
-	lengthMin = size$min_body_length,
-	lengthMax = size$max_body_length,
-	lengthMedian = size$median_body_length,
-	lengthRange = size$max_body_length - size$min_body_length,
-	soilEndo = size$`not_soil-dwelling_or_endoparasitic_-_soil-dwelling_or_endoparasitic`,
-	aqua = size$`terrestrial_-_aquatic`,
-	occIn = regions$ratio,
-	estFutureDesc = groupsResponses$estFutureDesc,
-	tenPercDesc = groupsResponses$tenPercDesc,
-	maxDescPace = groupsResponses$maxDescPace,
-	descVar = groupsResponses$descVar
+	name = groupsResponses$name,
+	C = groupsTotal,
+	A = authorMeans,
+	AVar = authorVar,
+	ACv = authorCv,
+	L = interest$litOcc,
+	LG = interest$gHits,
+	B = size$median_body_length,
+	S = size$`not_soil-dwelling_or_endoparasitic_-_soil-dwelling_or_endoparasitic`,
+	AQ = size$`terrestrial_-_aquatic`,
+	O = regions$ratio,
+	EF = groupsResponses$estFutureDesc,
+	TT = groupsResponses$tenPercDesc,
+	MP = groupsResponses$maxDescPace,
+	DV = groupsResponses$descVar
 )
 
-# use relative description pace (as maxDescPace was multiplied by colSums(groupsData) on creation)
-dat[, maxDescPace := maxDescPace / colSums(groupsData)[-1]]
+# use relative description pace (as maxDescPace was multiplied by groupsTotal on creation)
+dat[, MP := MP / groupsTotal]
+
 # It might be more interesting to investigate the relative description pace
 # instead of the absolute description pace. The absolute one is just related
 # to the number of authors, therefore the change.
 
-fwrite(dat, file = "groupsVariables.txt")
+# fwrite(dat, file = "groupsVariables.txt")
 
 # compare mean author numbers and total number of species
 # pdf("mean authors per year vs total description number.pdf", height=8.3,width=11.7)
-par(mfrow = c(1, 2))
-plot(NULL,
-	xlim = range(dat$currDesc), ylim = range(dat$meanAuthors),
-	xlab = "current descriptions", ylab = "mean authors w descriptions per year"
-)
-text(dat$currDesc, dat$meanAuthors, dat$name,
-	cex = .75,
-	col = c("red", "blue")[dat$authorFinal + 1]
-)
-abline(v = 20000, h = 25, col = "grey")
-abline(lm(dat$meanAuthors ~ dat$currDesc + 0), col = "grey")
-# zoom into small groups
-plot(NULL,
-	xlim = c(0, 20000), ylim = c(0, 25), xlab = "current descriptions",
-	ylab = "mean authors w descriptions per year"
-)
-text(dat$currDesc, dat$meanAuthors, dat$name,
-	cex = .75,
-	col = c("red", "blue")[dat$authorFinal + 1]
-)
-abline(lm(dat$meanAuthors ~ dat$currDesc + 0), col = "grey")
+#par(mfrow = c(1, 2))
+#plot(NULL,
+#	xlim = range(dat$C), ylim = range(dat$A),
+#	xlab = "current descriptions", ylab = "mean authors w descriptions per year"
+#)
+#text(dat$C, dat$A, dat$name,
+#	cex = .75,
+#	col = "red"
+#)
+#abline(v = 20000, h = 25, col = "grey")
+#abline(lm(dat$A ~ dat$C + 0), col = "grey")
+## zoom into small groups
+#plot(NULL,
+#	xlim = c(0, 20000), ylim = c(0, 25), xlab = "current descriptions",
+#	ylab = "mean authors w descriptions per year"
+#)
+#text(dat$C, dat$A, dat$name,
+#	cex = .75,
+#	col = "red"
+#)
+#abline(lm(dat$A ~ dat$C + 0), col = "grey")
 # dev.off()
 # Plants have much more authors per species than other groups,
 # i.e. less descriptions per author.
@@ -3384,7 +3385,7 @@ abline(lm(dat$meanAuthors ~ dat$currDesc + 0), col = "grey")
 # - description variance
 
 # predictor variables
-# - total author number/mean authors per year
+# - mean authors per year
 # - google hits / literature occurrences
 # - body length
 # - endoparasitic/soil-dwelling or not
@@ -3395,151 +3396,63 @@ abline(lm(dat$meanAuthors ~ dat$currDesc + 0), col = "grey")
 #
 # estimated future descriptions ~ ??
 # reason -> ten percent of what we have now and maximum pace are no deterministic predictors,
-# only complete species numbers
+# however, calculation-wise, maximum pace will be strongly linked
 #
+summary(lm(EF ~ MP + TT, data = dat)) # mostly MP
+
 # ten percent of current descriptions ~ author number + body length + occurrences +
 # endoparasitic/soil-dwelling or not + aquatic or not
 # reason -> depends on technical limitations, manpower, hardness to find species
 #
+summary(lm(TT ~ A + B + O + S + AQ, data = dat)) # A and B
+
 # maximum description pace ~ author number + endoparasitic/soil-dwelling or not + aquatic or not
 # reason -> body length + occurrences are no longer a limitation these days
 #
-# description variance ~ author number +ok (bad)+
-# reason -> with few authors, individual authors have more impact on the description pace
-#
-# author number ~ public interest +ok (good)+
-# reason -> more public interest should lead to more funding and scientists working on the topic
+summary(lm(MP ~ A + B + O + S + AQ + TT, data = dat)) # B and TT
 
-cors <- round(cor(dat[, -c("name", "authorFinal")]), 2)
-cors[abs(cors) < .3] <- 0
-cors
+# description variance ~ author number + public interest + occurrence
+# reason -> with few authors, individual authors have more impact on the description pace, public interest governs money flow,
+# occurrence in Europe reduces variability
+#
+summary(lm(DV ~ A + L + O, data = dat)) # nothing
+
+# author number ~ public interest
+# reason -> more public interest should lead to more funding and scientists working on the topic
+#
+summary(lm(A ~ L, data = dat)) # L
 
 # pdf("variable pairs.pdf",width=20,height=9)
-par(mfrow = c(3, 6))
-par(mar = c(4, 4, 2, 3))
-for (i in seq_len(ncol(dat))) {
-	if (is.numeric(dat[[i]])) {
-		for (j in seq_len(ncol(dat))) {
-			if (is.numeric(dat[[j]]) && i != j) {
-				plot(NULL, xlim = range(dat[[j]]), ylim = range(dat[[i]]), xlab = colnames(dat)[j], ylab = colnames(dat)[i])
-				text(dat[[j]], dat[[i]], labels = dat$name, cex = .75, col = groupsMeta$color)
-				points(dat[[j]], dat[[i]], cex = .75)
-			}
-		}
-	}
-}
+#par(mfrow = c(3, 6))
+#par(mar = c(4, 4, 2, 3))
+#for (i in seq_len(ncol(dat))) {
+#	if (is.numeric(dat[[i]])) {
+#		for (j in seq_len(ncol(dat))) {
+#			if (is.numeric(dat[[j]]) && i != j) {
+#				plot(NULL, xlim = range(dat[[j]]), ylim = range(dat[[i]]), xlab = colnames(dat)[j], ylab = colnames(dat)[i])
+#				text(dat[[j]], dat[[i]], labels = dat$name, cex = .75, col = groupsMeta$color)
+#				points(dat[[j]], dat[[i]], cex = .75)
+#			}
+#		}
+#	}
+#}
 # dev.off()
 
-# Playground - test assumed relationships with OLS models first
-
-# author number vs public interest
-par(mfrow = c(2, 2))
-par(mar=c(5.1,4.1,4.1,2.1))
-reg <- lm((meanAuthors) ~ (gHits) + 0, data = dat)
-plot((meanAuthors) ~ (gHits), data = dat, main = paste0("Google hits - R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
-abline(reg, col = "red", lwd = 2)
-reg <- lm((meanAuthors) ~ (litOcc) + 0, data = dat)
-plot((meanAuthors) ~ (litOcc), data = dat, main = paste0("LitOcc - R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
-abline(reg, col = "red", lwd = 2)
-reg <- lm(log(meanAuthors) ~ log(gHits) + 0, data = dat)
-plot(log(meanAuthors) ~ log(gHits), data = dat, main = paste0("Log Google hits - R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
-abline(reg, col = "red", lwd = 2)
-reg <- lm(log(meanAuthors) ~ log(litOcc + 1) + 0, data = dat)
-plot(log(meanAuthors) ~ log(litOcc + 1),
-	data = dat,
-	main = paste0("Log LitOcc - R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2))
-)
-abline(reg, col = "red", lwd = 2)
-# highly correlated, best seen in log-log, literature occurrences
-
-# description variability vs meanAuthors
-par(mfrow = c(1, 2))
-reg <- lm(descVar ~ meanAuthors, data = dat)
-summary(reg) # no relationship
-plot(descVar ~ meanAuthors, data = dat, main = paste0("R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
-abline(reg, col = "red", lwd = 2)
-abline(v = seq(0, 300, 10), col = "grey", lty = 2)
-# no correlation, but a clear trend of high variability in description variance
-# at small mean author numbers and lower variability at large mean author numbers
-plot(abs(resid(reg)) ~ fitted(reg))
-# try weighted regression to account for heteroskedasticity
-weights <- 1 / resid(reg)^2
-regW <- lm(descVar ~ meanAuthors, weight = weights, data = dat)
-summary(regW) # looks good
-par(mfrow = c(2, 2))
-plot(descVar ~ meanAuthors, data = dat, main = paste0("Unweighted R\xc2\xb2 = ", round(summary(reg)$adj.r.squared, 2)))
-abline(reg, col = "red", lwd = 2)
-plot(descVar ~ meanAuthors, data = dat, main = paste0("Weighted R\xc2\xb2 = ", round(summary(regW)$adj.r.squared, 2)))
-abline(regW, col = "red", lwd = 2)
-plot(abs(resid(reg)) ~ fitted(reg))
-plot(abs(I(resid(regW) * weights)) ~ fitted(regW))
-
-# maximum description pace ~ author number + endoparasitic/soil-dwelling or not + aquatic or not
-# reason -> body length + occurrences are no longer a limitation these days
-par(mfrow = c(1, 1))
-plot(maxDescPace ~ I(maxDescPace * colSums(groupsData)[-1]), data = dat)
-text(I(dat$maxDescPace * colSums(groupsData)[-1]), dat$maxDescPace, labels = dat$name, cex = .75, col = groupsMeta$color)
-plot(colSums(groupsData)[-1] ~ dat$meanAuthors)
-text(dat$meanAuthors, colSums(groupsData)[-1], labels = dat$name, cex = .75, col = groupsMeta$color)
-reg <- lm(maxDescPace ~ tenPercDesc, data = dat)
-summary(reg)
-reg <- lm(maxDescPace ~ tenPercDesc + soilEndo + aqua, data = dat)
-summary(reg)
-reg <- lm(maxDescPace ~ tenPercDesc + aqua, data = dat)
-summary(reg)
-# it looks as if nothing can be learned from soil-dwelling/endoparasitic
-par(mfrow = c(2, 3))
-plot(tenPercDesc ~ meanAuthors, data = dat)
-plot(maxDescPace ~ aqua, data = dat)
-plot(maxDescPace ~ lengthMedian, data = dat)
-plot(maxDescPace ~ lengthMin, data = dat)
-plot(maxDescPace ~ lengthMax, data = dat)
-summary(lm(maxDescPace ~ meanAuthors, data = dat))
-summary(lm(tenPercDesc ~ meanAuthors + lengthMedian, data = dat))
-# there seems to hardly be an answer on the maxDescPace,
-# if it is not taken to be the absolute value
-
-# ten percent of current descriptions ~ author number + body length + occurrences +
-# endoparasitic/soil-dwelling or not + aquatic or not
-# reason -> depends on technical limitations, manpower, hardness to find species
-summary(lm(tenPercDesc ~ meanAuthors + lengthMedian + occIn + soilEndo + aqua, data = dat))
-summary(lm(tenPercDesc ~ meanAuthors + lengthMedian + occIn, data = dat))
-# this seems to be ok
-summary(lm(tenPercDesc ~ meanAuthors + lengthMedian + occIn + I(log(aqua)), data = dat))
-# study soil endo and aqua for relationships with something (also check outliers!)
-
-summary(lm(estFutureDesc ~ maxDescPace, data = dat))
-
-# Concept figure (true diversity is unknown, could be modelled as latent variable)
+# Concept figure
 #
 # See manuscripts/taxon description dates/path diagram.pptx
 
-# Analyse in a Bayesian framework
-str(dat)
-
 # create scaled dataset
 dats <- copy(dat)
-numCols <- colnames(dats)[sapply(dats, is.numeric)]
-dats[, (numCols) := lapply(.SD, scale), .SDcols = (numCols)]
-str(dats)
-round(cor(dats[, -c("name")]), 2)
-
-# create short name dataset
-datn <- data.table(
-	C = dats$currDesc,
-	A = dats$meanAuthors,
-	DV = dats$descVar,
-	L = dats$litOcc,
-	B = dats$lengthMedian, # body size
-	S = dats$soilEndo,
-	AQ = dats$aqua,
-	O = dats$occIn,
-	TT = dats$tenPercDesc, # time until ten percent
-	MP = dats$maxDescPace, # maximum description pace
-	EF = dats$estFutureDesc
-)
+rmCols <- c("name", "AVar", "ACv", "LG")
+dats[, (rmCols) := NULL]
+dats[, (colnames(dats)) := lapply(.SD, scale)]
+round(cor(dats), 2)
 
 # rethinking implementation (no SEM)
+
+rmCols <- colnames(dats)[grepl("DVVar",colnames(dats))]
+if (length(rmCols) > 0) dats[, (rmCols) := NULL]
 
 # reg1 <- ulam(
 # 	alist(	# relationships between variables
@@ -3548,53 +3461,52 @@ datn <- data.table(
 # 		A ~ normal(beta, sigma),
 # 		beta <-  b * L + c * C,
 # 		DV ~ normal(gamma, tau),
-# 		tau <-  d * exp(-A) + e * exp(-O),
+# 		tau <-  d * exp(-A) + e * exp(-L),
 # 		TT ~ normal(delta, ypsilon),
-# 		delta <- f * B + g * A + h * O + ii * S + j * AQ + k * DV,
+# 		delta <- f * B + g * A + h * O + ii * S + j * AQ,
 # 		MP ~ normal(epsilon, phi),
-# 		epsilon <- l * B + m * A + n * O + o * S + p * AQ + q * TT,
+# 		epsilon <- k * B + l * A + m * O + n * S + o * AQ + p * TT,
 # 		EF ~ normal(zeta, chi),
-# 		zeta <- r * TT + s * MP,
+# 		zeta <- q * TT + r * MP,
 # 		# regression priors
-# 		c(a, b, c, f, g, h, ii, j, k, l, m, n, o, p, q, r, s) ~ dnorm(0,1),
+# 		c(a, b, c, f, g, h, ii, j, k, l, m, n, o, p, q, r) ~ dnorm(0,1),
 # 		c(d, e) ~ dexp(0.1),
 # 		# variance priors
 # 		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
 # 	),
-# 	data = datn, chains = 4, log_lik = TRUE
+# 	data = dats, chains = 4, log_lik = TRUE
 # )
 #
 #(res1 <- precis(reg1,depth=2))
 #mean   sd  5.5% 94.5% rhat ess_bulk
-#s        0.70 0.12  0.51  0.88 1.00  2012.37
-#r        0.03 0.12 -0.16  0.22 1.00  2177.94
-#q        0.75 0.17  0.47  1.02 1.00  2205.55
-#p        0.09 0.17 -0.18  0.37 1.00  1524.92
-#o       -0.19 0.16 -0.44  0.06 1.00  1869.51
-#n       -0.01 0.24 -0.39  0.37 1.00  1233.40
-#m        0.11 0.15 -0.13  0.35 1.00  2567.48
-#l        0.31 0.20 -0.01  0.63 1.00  1903.76
-#k       -0.47 0.10 -0.62 -0.31 1.00  2595.42
-#j        0.03 0.13 -0.18  0.24 1.00  1551.23
-#ii       0.29 0.12  0.11  0.48 1.00  1709.14
-#h       -0.29 0.19 -0.60  0.01 1.00  1186.28
-#g       -0.41 0.10 -0.57 -0.25 1.00  1554.88
-#f       -0.46 0.14 -0.69 -0.24 1.00  1583.87
-#c        0.74 0.06  0.66  0.83 1.01  2327.63
-#b        0.36 0.06  0.27  0.45 1.00  2783.49
-#a        0.35 0.14  0.13  0.57 1.00  2662.26
-#e        0.39 0.09  0.26  0.54 1.00  1967.73
-#d        0.35 0.08  0.23  0.49 1.00  1764.85
-#chi      0.71 0.08  0.60  0.85 1.00  2413.62
-#phi      0.86 0.09  0.72  1.02 1.00  1986.01
-#ypsilon  0.64 0.07  0.54  0.76 1.00  2588.55
-#gamma    0.05 0.05  0.00  0.13 1.00  1684.75
-#sigma    0.36 0.04  0.30  0.43 1.00  2150.97
-#rho      0.95 0.10  0.81  1.11 1.00  3342.16
+#r        0.70 0.11  0.51  0.88    1  2247.52
+#q        0.04 0.12 -0.15  0.22    1  2331.34
+#p        0.79 0.16  0.52  1.05    1  2047.67
+#o        0.17 0.16 -0.09  0.41    1  2042.28
+#n       -0.20 0.15 -0.45  0.04    1  2365.81
+#m        0.08 0.21 -0.26  0.42    1  1424.54
+#l        0.10 0.15 -0.14  0.32    1  2298.79
+#k        0.50 0.18  0.21  0.78    1  2121.51
+#j       -0.13 0.15 -0.36  0.11    1  1657.26
+#ii       0.22 0.14  0.00  0.44    1  1878.45
+#h        0.03 0.20 -0.29  0.35    1  1450.92
+#g       -0.35 0.13 -0.55 -0.15    1  2737.67
+#f       -0.36 0.16 -0.62 -0.10    1  2094.20
+#c        0.76 0.05  0.68  0.85    1  2723.81
+#b        0.34 0.05  0.26  0.42    1  2394.90
+#a        0.37 0.14  0.15  0.60    1  2922.39
+#e        4.84 0.58  4.00  5.81    1  3500.12
+#d        0.80 0.26  0.48  1.27    1  3908.61
+#chi      0.71 0.08  0.60  0.84    1  3427.81
+#phi      0.82 0.09  0.68  0.97    1  2514.57
+#ypsilon  0.79 0.09  0.66  0.95    1  2660.67
+#gamma    0.02 0.02  0.00  0.05    1  1899.20
+#sigma    0.33 0.04  0.28  0.40    1  3092.41
+#rho      0.94 0.10  0.80  1.11    1  3360.44
 
 # len1 <- length(res1@.Data[[1]])
 # par(mfrow=c(1,1))
-# plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="", main = "Model 1 coefficients")
+# plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,8),xlab="",ylab="", main = "Model 1 coefficients")
 # xseq <- seq(-1.5,1.5,l=500)
 # for (i in seq_len(len1)){
 # 	if (nchar(res1@row.names[i]) < 3){
@@ -3608,152 +3520,112 @@ datn <- data.table(
 # 	}
 # }
  
-# reg2 <- ulam(
-# 	alist(	# relationships between variables
-# 		L ~ normal(alpha, rho),
-# 		alpha <- a * C,
-# 		A ~ normal(beta, sigma),
-# 		beta <-  b * L + c * C,
-# 		DV ~ normal(gamma, tau),
-# 		tau <-  d * exp(-A) + e * exp(-O),
-# 		TT ~ normal(delta, ypsilon),
-# 		delta <- f * B + g * A + h * O + ii * S + k * DV,
-# 		MP ~ normal(epsilon, phi),
-# 		epsilon <- l * B + q * TT,
-# 		EF ~ normal(zeta, chi),
-# 		zeta <- s * MP,
-# 		# regression priors
-# 		c(a, b, c, f, g, h, ii, k, l, q, s) ~ dnorm(0,1),
-# 		c(d, e) ~ dexp(0.1),
-# 		# variance priors
-# 		c(rho, sigma, gamma, ypsilon, phi, chi) ~ dexp(1)
-# 	),
-# 	data = datn, chains = 4, log_lik = TRUE
-# )
-
-# (res2 <- precis(reg2,depth=2))
-#mean   sd  5.5% 94.5% rhat ess_bulk
-#s        0.71 0.10  0.55  0.88    1  2747.43
-#q        0.65 0.15  0.40  0.87    1  2359.09
-#l        0.33 0.15  0.09  0.56    1  2340.86
-#k       -0.46 0.10 -0.62 -0.31    1  2282.34
-#ii       0.28 0.11  0.10  0.45    1  1885.13
-#h       -0.26 0.14 -0.50 -0.04    1  1757.36
-#g       -0.42 0.10 -0.57 -0.26    1  2858.73
-#f       -0.46 0.14 -0.67 -0.24    1  2242.01
-#c        0.74 0.06  0.65  0.84    1  3241.65
-#b        0.36 0.06  0.28  0.46    1  2157.38
-#a        0.35 0.14  0.14  0.57    1  2765.48
-#e        0.39 0.09  0.26  0.54    1  1987.35
-#d        0.35 0.08  0.23  0.50    1  2129.82
-#chi      0.70 0.07  0.59  0.83    1  3057.33
-#phi      0.85 0.09  0.72  1.00    1  2482.35
-#ypsilon  0.64 0.07  0.53  0.76    1  2331.33
-#gamma    0.05 0.04  0.00  0.13    1  1857.12
-#sigma    0.36 0.04  0.31  0.43    1  3391.30
-#rho      0.95 0.10  0.81  1.12    1  3026.81
-
-# len2 <- length(res2@.Data[[1]])
-# par(mfrow=c(1,1))
-# plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7),xlab="",ylab="")
-# xseq <- seq(-1.5,1.5,l=500)
-# for (i in seq_len(len2)){
-# 	if (nchar(res2@row.names[i]) < 3){
-# 		yseq <- dnorm(xseq,res2@.Data[[1]][i],res2@.Data[[2]][i])
-# 		if (res2@.Data[[3]][i] * res2@.Data[[4]][i] < 0){
-# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "red")
-# 		} else {
-# 			polygon(c(xseq,rev(xseq)),c(rep(0,length(xseq)),rev(yseq)),col=paste0(rainbow(len2)[i],"33"), border = "dark grey")
-# 		}
-# 		text(res2@.Data[[1]][i], 1 / (res2@.Data[[2]][i] * sqrt(2 * pi)),res2@row.names[i])
-# 	}
-# }
-
-# way to present data
-# precis(reg1,depth=2)
-# post <- extract.samples(reg1) #get samples from the posterior distribution
-# par(mfrow=c(1,2))
-# plot(datn$P,datn$A,col=2,lwd=3,xlab="log(literature occurences)",ylab="log(mean author number per year)")
-# for (i in 1:100) abline(a=0, b=post$a[i],lwd=1)
-# dens(post$a,lwd=2,col=2)
-
 # Blavaan implementation
 
 # Blavaan cannot model the effect of a variable on the variance of another.
 # Therefore, a workaround would be to estimate the variance and regress on
 # the variance instead of the variable itself
 
-## test estimation of the variance
+# test estimation of the variance
+
+# # first variable, just a linear sequence
 # v1 <- seq(1,100,l=1000)
+# # second variable, random number around zero with sd defined by first variable
 # v2 <- rnorm(1000,0, sd = 1.5 * v1)
 # plot(v2 ~ v1)
+# # create intervals
 # ints <- 20
-# sdInts <- length(v2)/ints
-# sdVals <- rep(NA,ints)
+# sdInts <- length(v2)/ints # number of samples per interval
+# sdVals <- rep(NA,ints) # empty sd results
+# # calculate variance per interval
 # for (i in seq_along(sdVals)) sdVals[i] <- sd(v2[seq_len(sdInts) + sdInts * (i - 1)])
 # sdPrds <- rep(NA,ints)
+# # calculate mean x value per interval
 # for (i in seq_along(sdPrds)) sdPrds[i] <- mean(v1[seq_len(sdInts) + sdInts * (i - 1)])
 # dat <- data.table(sdPrds,sdVals)
 # plot(sdVals~sdPrds,data=dat)
+# # try to retrieve relationship
 # model <- '
 # 		# relationships between measured variables
 # 		sdVals ~ sdPrds
 # 		'
-## fit the model to the data
+# # fit the model to the data
 # fit <- bsem(model, data = dat, sample=2000)
 # summary(fit)
-# This approach works, but there is of course some additional uncertainty associated,
-# especially considering that the real data is very sparse
+# # This approach works, but there is of course some additional uncertainty associated,
+# # especially considering that the real data is very sparse
 
 # do the estimation for the real data
 
-# I want to predict description variability with two predictors, which are A (the number
-# of author) and O (the occurrence of species in Europe)
-# I need to calculate mean variability for each combination of A and O, or for certain intervals
-# then, I can use this variable to regress it on A and O
+# I want to predict description variability with two or three predictors, 
+# which are 
+# - A (the number of authors)
+# - O (the occurrence of species in Europe and North America)
+# - L (public interest)
+# I need to calculate mean variability of description variability for each combination
+# of variables or for certain intervals then, I can use this variable to regress it 
+# A, O, or L, respectivly
 
-# get means within intervals
-if ("DVVar" %in% colnames(datn)) datn[, DVVar := NULL]
-datn[, DVVar := numeric()]
-range(datn$A)
-range(datn$O)
-for (i in seq(-1, 6, l = 6)) {
-	for (j in seq(-2, 2.5, l = 6)) {
-		datn[A > i & A < i + 1 & O > j & O < j + 1, DVVar := mean(DV, na.rm = TRUE)]
-	}
-}
+## get means within intervals
+#rmCols <- colnames(dats)[grepl("DVVar",colnames(dats))]
+#if (length(rmCols) > 0) dats[, (rmCols) := NULL]
+#newCols <- c("DVVarA","DVVarO","DVVarL","DVVarAO","DVVarAL","DVVarOL","DVVarAOL")
+#dats[, (newCols) := numeric()]
+#range(dats$A)
+#range(dats$O)
+#range(dats$L)
+#ints <- 10
+#seqi <- seq(-1, 5.5, l = ints)
+#seqj <- seq(-2, 2.5, l = ints)
+#seqk <- seq(-0.5,5.5, l = ints)
+#k <- 1
+#for (i in seq_len(ints-1)){
+#	dats[A > seqi[i] & A < seqi[i+1], DVVarA := sd(DV, na.rm = TRUE)]
+#	for (j in seq_len(ints-1)){
+#		dats[O > seqj[j] & O < seqj[j + 1], DVVarO := sd(DV, na.rm = TRUE)]
+#		dats[A > seqi[i] & A < seqi[i + 1] & O > seqj[j] & O < seqj[j + 1], DVVarAO := sd(DV, na.rm = TRUE)]
+#		for (k in seq_len(ints-1)){
+#			dats[L > seqk[k] & L < seqk[k + 1], DVVarL := sd(DV, na.rm = TRUE)]
+#			dats[A > seqi[i] & A < seqi[i + 1] & O > seqj[j] & O < seqj[j + 1] & L > seqk[k] & L < seqk[k + 1], DVVarAOL := sd(DV, na.rm = TRUE)]
+#			dats[A > seqi[i] & A < seqi[i + 1] & L > seqk[k] & L < seqk[k + 1], DVVarAL := sd(DV, na.rm = TRUE)]
+#			dats[L > seqk[k] & L < seqk[k + 1] & O > seqj[j] & O < seqj[j + 1], DVVarOL := sd(DV, na.rm = TRUE)]
+#		}
+#	}
+#}
+#dats[, (colnames(dats)) := lapply(.SD, scale)]
 
-# visualize DVVar as a function of A and O
-par(mfrow=c(1,3))
-plot(datn$A, datn$O, cex = 10 * (datn$DVVar - min(datn$DVVar, na.rm = TRUE)) / (max(datn$DVVar, na.rm = TRUE) - datn$DVVar - min(datn$DVVar, na.rm = TRUE)))
-points(datn$A, datn$O, col=c("black","red")[is.na(datn$DVVar) + 1],pch=16) # red: NA values
-abline(v = seq(-1, 6, l = 6), lty = 2)
-abline(h = seq(-2, 2.5, l = 6), lty = 2)
-plot(datn$DVVar ~ datn$A, pch = 16)
-plot(datn$DVVar ~ datn$O, pch = 16)
-
-# data imputation for two missing values
-#for (i in which(is.na(datn$DVVar))) {
+## data imputation for missing values
+#for (i in which(is.na(dats$DVVar))) {
 #	# calculate distance between points
-#	dists <- sqrt((datn$A[i] - datn$A[-i])^2 + (datn$O[i] - datn$O[-i])^2)
+#	dists <- sqrt((dats$A[i] - dats$A[-i])^2 + (dats$O[i] - dats$O[-i])^2)
 #	# calculate meann weighted by distance
-#	datn$DVVar[i] <- sum(datn$DVVar[-i] * dists,na.rm=TRUE) / sum(dists)
+#	dats$DVVar[i] <- sum(dats$DVVar[-i] * dists,na.rm=TRUE) / sum(dists)
 #}
 
 model1 <- "
-	# relationships between measured variables
-	L ~ a * C
-	A ~  b * L + c * C
-	DVVar ~  d * A + e * O
-	TT ~ f * B + g * A + h * O + ii * S + j * AQ + k * DVVar
-	MP ~ l * B + m * A + n * O + o * S + p * AQ + q * TT
-	EF ~ r * TT + s * MP
-"
+		# relationships between measured variables
+		L ~ a * C
+		A ~  b * L + c * C
+        DVVarAO ~ d * A + e * O
+        TT ~ g * B + h * A + ii * O + j * S + k * AQ + f * DVVarAO
+		MP ~ l * B + m * A + n * O + o * S + p * AQ + q * TT 
+		EF ~ r * TT + s * MP
+		"
 
-fit1 <- bsem(model1, data = datn)
+model1 <- "
+		# relationships between measured variables
+		L ~ a * C
+		A ~  b * L + c * C
+		DV ~ d * A
+		TT ~ e * B + f * A + g * O + h * S + ii * AQ + j * DV
+		MP ~ k * B + l * A + m * O + n * S + o * AQ + p * TT
+		EF ~ q * TT + r * MP
+		"
+fit1 <- bsem(model1, data = dats)
 summary(fit1)
+
 #Statistic                                 MargLogLik         PPP
-#Value                                       -382.500       0.617
+#Value                                       -381.652       0.573
 #
 #Parameter Estimates:
 #		
@@ -3761,40 +3633,40 @@ summary(fit1)
 #		Regressions:
 #		Estimate  Post.SD pi.lower pi.upper     Rhat    Prior       
 #L ~                                                                          
-#		C          (a)    0.380    0.142    0.103    0.657    0.999    normal(0,10)
+#		C          (a)    0.379    0.140    0.106    0.655    1.000    normal(0,10)
 #A ~                                                                          
-#		L          (b)    0.339    0.054    0.232    0.447    0.999    normal(0,10)
-#C          (c)    0.765    0.056    0.653    0.878    0.999    normal(0,10)
-#DVVar ~                                                                      
-#		A          (d)   -0.115    0.072   -0.255    0.026    0.999    normal(0,10)
-#O          (e)   -0.232    0.073   -0.370   -0.091    1.000    normal(0,10)
+#		L          (b)    0.340    0.053    0.233    0.446    1.000    normal(0,10)
+#C          (c)    0.764    0.054    0.660    0.867    0.999    normal(0,10)
+#DV ~                                                                         
+#		A          (d)   -0.099    0.157   -0.406    0.208    0.999    normal(0,10)
 #TT ~                                                                         
-#		B          (f)   -0.406    0.178   -0.746   -0.039    1.000    normal(0,10)
-#A          (g)   -0.367    0.130   -0.625   -0.115    1.000    normal(0,10)
-#O          (h)   -0.091    0.237   -0.580    0.378    1.000    normal(0,10)
-#S         (ii)    0.261    0.148   -0.029    0.547    1.000    normal(0,10)
-#AQ         (j)   -0.088    0.154   -0.378    0.226    1.001    normal(0,10)
-#DVVar      (k)   -0.185    0.278   -0.735    0.358    1.001    normal(0,10)
+#		B          (e)   -0.396    0.143   -0.672   -0.108    1.000    normal(0,10)
+#A          (f)   -0.403    0.114   -0.626   -0.172    1.000    normal(0,10)
+#O          (g)   -0.192    0.192   -0.570    0.182    0.999    normal(0,10)
+#S          (h)    0.273    0.124    0.028    0.516    0.999    normal(0,10)
+#AQ        (ii)   -0.004    0.137   -0.278    0.262    1.000    normal(0,10)
+#DV         (j)   -0.439    0.110   -0.653   -0.216    1.000    normal(0,10)
 #MP ~                                                                         
-#		B          (l)    0.532    0.182    0.167    0.874    1.000    normal(0,10)
-#A          (m)    0.111    0.148   -0.174    0.400    1.000    normal(0,10)
-#O          (n)    0.081    0.214   -0.344    0.500    1.000    normal(0,10)
-#S          (o)   -0.228    0.151   -0.530    0.067    1.000    normal(0,10)
-#AQ         (p)    0.158    0.158   -0.157    0.474    1.000    normal(0,10)
-#TT         (q)    0.848    0.166    0.528    1.173    1.000    normal(0,10)
+#		B          (k)    0.538    0.187    0.164    0.904    1.000    normal(0,10)
+#A          (l)    0.106    0.144   -0.176    0.392    1.000    normal(0,10)
+#O          (m)    0.106    0.224   -0.327    0.562    1.001    normal(0,10)
+#S          (n)   -0.223    0.159   -0.539    0.097    1.000    normal(0,10)
+#AQ         (o)    0.164    0.166   -0.166    0.474    1.000    normal(0,10)
+#TT         (p)    0.818    0.166    0.501    1.138    0.999    normal(0,10)
 #EF ~                                                                         
-#		TT         (r)    0.025    0.118   -0.210    0.256    0.999    normal(0,10)
-#MP         (s)    0.710    0.121    0.478    0.946    1.001    normal(0,10)
+#		TT         (q)    0.028    0.126   -0.217    0.270    1.000    normal(0,10)
+#MP         (r)    0.704    0.127    0.455    0.950    1.000    normal(0,10)
+
 
 # fitMeasures(fit1)
-# plot(fit1,plot.type = "trace")
-# good overall fit, several coefficients close to zero
+#plot(fit1,plot.type = "trace")
+# good overall fit
 
 # get samples from the posterior
 postSamples1 <- standardizedPosterior(fit1,type="std.lv")
 len1 <- sum(fit1@ParTable$op == "~")
 
-# pdf("Model 1 coefficients.pdf", width=11.7,height=8.3)
+#pdf("Model 1 coefficients.pdf", width=11.7,height=8.3)
 par(mfrow=c(1,1))
 plot(NULL,xlim=c(-1.5,1.5),ylim=c(0,7.75),xlab="",ylab="",cex.lab=1.5,cex.axis=1.5)
 xseq <- seq(-1.5,1.5,l=500)
@@ -3810,28 +3682,27 @@ for (i in seq_len(len1)){
 	# show variable name
 	text(fit1@ParTable$est[i], 1 / (fit1@ParTable$se[i] * sqrt(2 * pi))* 1.05,fit1@ParTable$label[i],font=2)
 }
-# dev.off()
+#dev.off()
 
 # remove those coefficients that have zero within 90% PI
 testPI <- sapply(seq_len(sum(fit1@ParTable$label != "")),function(x) qnorm(c(.1,.9),fit1@ParTable$est[x],fit1@ParTable$se[x]))
 colnames(testPI) <- fit1@ParTable$label[fit1@ParTable$label != ""]
 testPI # those that include zero in this interval need to be removed
-# h, j, k, m, n, p, r
+# g,ii,l,m,o,q
 
 model2 <- "
-	# relationships between measured variables
-	L ~ a * C
-	A ~  b * L + c * C
-	DVVar ~  d * A + e * O
-	TT ~ f * B + g * A + ii * S
-	MP ~ l * B + o * S + q * TT
-	EF ~ s * MP
-"
-
-fit2 <- bsem(model2, data = datn)
+		# relationships between measured variables
+		L ~ a * C
+		A ~  b * L + c * C
+		DV ~ d * A 
+		TT ~ e * B + f * A  + h * S  + j * DV
+		MP ~ k * B  + n * S + p * TT
+		EF ~  r * MP
+		"
+fit2 <- bsem(model2, data = dats)
 summary(fit2)
 #Statistic                                 MargLogLik         PPP
-#Value                                       -357.786       0.611
+#Value                                       -358.819       0.619
 #
 #Parameter Estimates:
 #		
@@ -3839,23 +3710,23 @@ summary(fit2)
 #		Regressions:
 #		Estimate  Post.SD pi.lower pi.upper     Rhat    Prior       
 #L ~                                                                          
-#		C          (a)    0.383    0.141    0.105    0.650    0.999    normal(0,10)
+#		C          (a)    0.380    0.141    0.108    0.658    1.000    normal(0,10)
 #A ~                                                                          
-#		L          (b)    0.339    0.054    0.229    0.446    1.000    normal(0,10)
-#C          (c)    0.764    0.053    0.657    0.871    1.000    normal(0,10)
-#DVVar ~                                                                      
-#		A          (d)   -0.114    0.073   -0.256    0.034    1.000    normal(0,10)
-#O          (e)   -0.227    0.071   -0.368   -0.088    1.000    normal(0,10)
+#		L          (b)    0.339    0.054    0.230    0.441    0.999    normal(0,10)
+#C          (c)    0.765    0.055    0.658    0.873    1.000    normal(0,10)
+#DV ~                                                                         
+#		A          (d)   -0.101    0.159   -0.417    0.211    1.000    normal(0,10)
 #TT ~                                                                         
-#		B          (f)   -0.359    0.129   -0.614   -0.104    1.000    normal(0,10)
-#A          (g)   -0.322    0.128   -0.575   -0.079    0.999    normal(0,10)
-#S         (ii)    0.246    0.124    0.011    0.484    1.000    normal(0,10)
+#		B          (e)   -0.290    0.114   -0.516   -0.071    1.000    normal(0,10)
+#A          (f)   -0.388    0.110   -0.605   -0.173    1.000    normal(0,10)
+#S          (h)    0.212    0.103    0.010    0.416    0.999    normal(0,10)
+#DV         (j)   -0.420    0.102   -0.619   -0.224    1.001    normal(0,10)
 #MP ~                                                                         
-#		B          (l)    0.446    0.144    0.168    0.724    1.001    normal(0,10)
-#S          (o)   -0.203    0.134   -0.474    0.054    0.999    normal(0,10)
-#TT         (q)    0.787    0.149    0.504    1.082    1.001    normal(0,10)
+#		B          (k)    0.433    0.151    0.130    0.732    1.001    normal(0,10)
+#S          (n)   -0.184    0.136   -0.441    0.081    0.999    normal(0,10)
+#TT         (p)    0.763    0.153    0.458    1.063    0.999    normal(0,10)
 #EF ~                                                                         
-#		MP         (s)    0.723    0.106    0.514    0.923    1.000    normal(0,10)
+#		MP         (r)    0.720    0.106    0.509    0.934    1.000    normal(0,10)
 
 # fitMeasures(fit2)
 # plot(fit2,plot.type = "trace")
@@ -3884,7 +3755,7 @@ rm(list = ls())
 setwd(paste0(.brd, "taxon description dates"))
 
 # save.image("temp.RData")
-load("temp.RData")
+#load("temp.RData")
 
 #################################################
 
@@ -3894,6 +3765,7 @@ nextScript <- NULL
 # load in libraries
 library(data.table) # handle large datasets
 library(RSelenium) # for web scraping
+library(RJSONIO)
 
 # clean workspace
 rm(list = ls())
@@ -3905,12 +3777,12 @@ setwd(paste0(.brd, "taxon description dates"))
 groupsData <- fread("groupsData.txt")
 groupsTotal <- colSums(groupsData[, -"year"])
 
-# close all open ports
-try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
-
-rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
-remDr <- rD[["client"]]
-
+## close all open ports
+#try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+#
+#rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL, phantomver = NULL)
+#remDr <- rD[["client"]]
+#
 # get CoL species numbers
 #colNums <- rep(NA,length(groupsTotal))
 #for (i in seq_along(groupsTotal)){
@@ -3978,7 +3850,7 @@ for (i in seq_along(groupsGBIFTaxonKeys)){
 	if (!is.na(groupsGBIFTaxonKeys)[i]){
 		res <- fromJSON(paste0("https://api.gbif.org/v1/species/",groupsGBIFTaxonKeys[i],"/metrics"))
 		if ("numSpecies" %in% names(res)){
-			gbifNums[i] <- res$numSpecies
+			gbifNums[i] <- res[names(res) == "numSpecies"]
 		}
 	}
 }
@@ -3988,14 +3860,14 @@ gbifNums <- gbifNums[1:47]
 
 dat <- data.table(group=names(groupsTotal),LifeGate=groupsTotal,GBIF=gbifNums,CoL=colNums)
 par()$mar
-pdf("Comparison of LifeGate and CoL species numbers.pdf",width=8.3,height=11.7)
+pdf(paste0("Comparison of LifeGate, GBIF, and CoL species numbers_",Sys.Date(),".pdf"),width=8.3,height=11.7)
 par(mar=c(5.1,8.1,4.1,2.1))
 barplot(t(dat[,-"group"]),names.arg=dat$group,las=2,beside=TRUE,legend.text=TRUE,horiz=TRUE,las=1)
 dev.off()
 
 # compare insect species numbers (number taken from CoL directly)
 names(groupsTotal)
-sum(groupsTotal[21:36]) # 1346241 in LifeGate, 1114071 in GBIF, 994767 in CoL
+sum(groupsTotal[21:36]) # 1184055 in LifeGate, 1114071 in GBIF, 994767 in CoL
 
 # ratio
 dat[,ratioGBIF := round(dat$GBIF/dat$LifeGate,2)]
