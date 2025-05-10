@@ -17,6 +17,7 @@
 # 9 Analyze taxon description data
 # 10 Compare species numbers between LifeGate, GBIF, and CoL
 # 11 Compare checked species numbers for Lepidoptera and Bryophyta
+# 12 Create additional graphs showing relationships between specific variables
 ###################################################################################################
 
 # 1 Visualize data from LCVP and total numbers sent by LifeGate####################################
@@ -982,9 +983,9 @@ setcolorder(authorData, c(1, sapply(pt$tip.label, function(x) which(groupsMeta$n
 groupsMeta <- groupsMeta[sapply(pt$tip.label, function(x) which(sub(".* ", "", groupsMeta$name) == x))]
 
 # write data for later use
-fwrite(groupsMeta, file = "groupsMeta.txt")
-fwrite(groupsData, file = "groupsData.txt")
-fwrite(authorData, file = "authorData.txt")
+# fwrite(groupsMeta, file = "groupsMeta.txt")
+# fwrite(groupsData, file = "groupsData.txt")
+# fwrite(authorData, file = "authorData.txt")
 
 # get icons of groups from phylopic.org
 # IDs were retrieved manually
@@ -1091,11 +1092,11 @@ for (i in groupsVec) {
 }
 # dev.off()
 
-# plot description history
+# plot description rate and cumulative descriptions
 polyYear <- c(groupsData$year, rev(groupsData$year))
 zeros <- rep(0, nrow(groupsData))
 
-# pdf("description history.pdf",width=11.7,height=8.3)
+# pdf("description rate and cumulative descriptions.pdf",width=11.7,height=8.3)
 # plot all groups in one sheet
 par(oma = c(5, 5, 1, 1))
 par(mar = c(0, 0, 0, 0))
@@ -1113,7 +1114,7 @@ for (i in groupsVec) {
 	rasterImage(img, 1760, log(2001), 1790, log(2001) + scale)
 }
 mtext("year", 1, 3, at = 1450)
-mtext("descriptions", 2, 52.5, at = 23, xpd = TRUE)
+mtext("descriptions per year", 2, 52.5, at = 23, xpd = TRUE)
 # plot all groups in one sheet with cumulative relative values
 par(oma = c(5, 5, 1, 1))
 par(mar = c(0, 0, 0, 0))
@@ -1145,31 +1146,32 @@ plotGroups[[4]] <- c(14:20) # Chordata, Spiralia
 plotGroups[[5]] <- c(21:28) # insects 1
 plotGroups[[6]] <- c(29:36) # insects 2
 
-# pdf("description history comparative.pdf",width=10,height=5)
+# pdf("cumulative descriptions phylogenetic.pdf", width = 12.3, height = 11.7)
 cols <- c(brewer.pal(8, "Dark2"), "black")
-par(mfrow = c(2, 3))
+par(mfrow = c(3, 2))
 par(oma = c(5, 5, 0.1, 0.1))
-par(mar = c(0, 0, 0, .45))
+par(mar = c(0, 0, 0, 0))
 i <- 1
 groupsMeta[color == "black", color := "#000000"]
 for (i in seq_along(plotGroups)) {
 	plot(NULL, xlim = range(groupsData$year), ylim = c(0, 1), xaxt = "n", yaxt = "n", xlab = "", ylab = "")
-	abline(h = c(0.2, 0.4, 0.6, 0.8, 1), lty = 3)
+	abline(h = c(0, 0.2, 0.4, 0.6, 0.8, 1), lty = 3)
 	abline(v = c(1800, 1850, 1900, 1950, 2000), lty = 3)
-	if ((i - 1) %% 3 == 0) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1))
-	if (i > 3) axis(1, at = c(1800, 1900, 2000))
+	if ((i - 1) %% 2 == 0) axis(2, at = c(0, 0.2, 0.4, 0.6, 0.8, 1), labels = c(0, 0.2, 0.4, 0.6, 0.8, 1), cex.axis = 2)
+	if (i > 4) axis(1, at = c(1800, 1900, 2000), cex.axis = 2, mgp = c(3, 1.75, 0))
 	for (j in groupsVec) {
 		lines(groupsData$year, cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]), col = "lightgrey")
 	}
+	text(1760, 0.97, paste0("(", letters[i], ")"), adj = 0, font = 2, cex = 2)
 	k <- 1
 	for (j in plotGroups[[i]]) {
 		lines(groupsData$year, cumsum((groupsData[[j + 1]])) / sum(groupsData[[j + 1]]), col = cols[k], lwd = 2)
-		text(1790, 1 - k * 0.07, groupsMeta$name[j], adj = 0, col = cols[k], font = 2, cex = 1.1)
+		text(1790, 1 - (k + 1) * 0.07, groupsMeta$name[j], adj = 0, col = cols[k], font = 2, cex = 1.1)
 		img <- readPNG(paste0("group icons/", groupsMeta$name[j], ".png"))
 		scale <- 30 / diff(range(groupsData$year)) * 0.6
 		colRGB <- col2rgb(cols[k]) / 255
 		for (l in 1:3) img[, , l] <- colRGB[[l]]
-		rasterImage(img, 1760, 1 - k * 0.07 - 0.03, 1775, 1 - k * 0.07 - 0.03 + scale)
+		rasterImage(img, 1760, 1 - (k + 1) * 0.07 - 0.03, 1775, 1 - (k + 1) * 0.07 - 0.03 + scale)
 		k <- k + 1
 	}
 	col1 <- groupsMeta$color[plotGroups[[i]][1]]
@@ -1224,7 +1226,7 @@ i <- i + 1
 rest <- setdiff(1:47, unlist(plotGroups[1:(i - 1)]))
 plotGroups[[i]] <- rest
 
-pdf("description history comparative_functional.pdf", width = 12.3, height = 11.7)
+# pdf("cumulative descriptions functional.pdf", width = 12.3, height = 11.7)
 cols <- c(brewer.pal(8, "Dark2"), rep("black", 4))
 par(mfrow = c(3, 2))
 par(oma = c(5, 5, 0.1, 0.1))
@@ -1274,14 +1276,14 @@ for (i in seq_along(plotGroups)) {
 		}
 	}
 }
-dev.off()
+# dev.off()
 
 # plot all groups separately
 par(parBackup)
 for (i in groupsVec) {
 	plot(NULL,
 		xlim = range(groupsData$year), ylim = c(0, max(log(groupsData + 1))), xaxt = "n", yaxt = "n",
-		xlab = "year", ylab = "descriptions"
+		xlab = "year", ylab = "description rate"
 	)
 	abline(h = log(c(0, 10, 100, 1000) + 1), lty = 3)
 	abline(v = c(1800, 1900, 2000), lty = 3)
@@ -1322,9 +1324,75 @@ dtf[vSize > 75000, fontsize := 1000]
 
 # plot all groups, remove labels of smaller groups manually
 # create a larger plot to be able to copy paste a fraction of it, whose labels are not displayed otherwise
-pdf("number of descriptions per group.pdf", width = 117, height = 83)
+# pdf("total description numbers.pdf", width = 117, height = 83)
 treemap(dtf, index = "index", vSize = "vSize", title = "", vColor = "color", type = "color", border.col = "grey", border.lwds = 25, fontsize.labels = 200, lowerbound.cex.labels = 0)
-dev.off()
+# dev.off()
+
+# get a measure of decrease in velocity due to idiosyncratic events (wars, other crisis)
+speeds <- matrix(0, nrow(groupsData), ncol(groupsData) - 1)
+for (i in seq_len(ncol(groupsData) - 1)) {
+	for (j in seq_along(groupsData[[i + 1]])) {
+		if (j > 5 & j < nrow(groupsData)) {
+			if (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) < 1 / 2 * mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)
+			# & any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE)
+			# & groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
+			& (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) - mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)) / sum(groupsData[[i + 1]]) < -0.001
+			) {
+				speeds[j, i] <- -1
+			}
+			if (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) > 2 * mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)
+			# & any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE)
+			# & groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
+			& (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) - mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)) / sum(groupsData[[i + 1]]) > 0.001
+			) {
+				speeds[j, i] <- 1
+			}
+		}
+	}
+}
+
+# pdf("description rate anomalies.pdf",width=11.7,height=8.3)
+par(mfrow = c(1, 1))
+plot(NULL, ylim = c(0, 1.9), xlim = range(groupsData$year), type = "l", xlab = "year", ylab = "", yaxt = "n")
+numMax <- max(rowSums(speeds == -1), rowSums(speeds == 1))
+axis(2, c(0, 0.5, 1, 1.5 + c(0, 1 / 6, -1 / 6, 1 / 3, -1 / 3)), c(0, 0.5, 1, 0, numMax / 2, numMax / 2, numMax, numMax))
+text(1724, 0.5, "descriptions", srt = 90, cex = 1.2, xpd = TRUE)
+text(1724, 1.5, "description rate anomalies", srt = 90, cex = 1.2, xpd = TRUE)
+abline(h = 1.1)
+for (i in seq_len(ncol(groupsData) - .8)) {
+	lines(groupsData$year, cumsum(groupsData[[i + 1]]) / sum(groupsData[[i + 1]]), col = "grey")
+}
+lines(groupsData$year, cumsum(rowSums(groupsData[, -1])) / sum(groupsData[, -1]), lwd = 2)
+# Franco-German war
+polygon(c(c(1870:1871), rev(c(1870:1871))), c(rep(0, 2), rep(1.9, 2)), col = "#99555555", border = NA)
+# first world war
+polygon(c(c(1914:1918), rev(c(1914:1918))), c(rep(0, 5), rep(1.9, 5)), col = "#99555555", border = NA)
+# second world war
+polygon(c(c(1939:1945), rev(c(1939:1945))), c(rep(0, 7), rep(1.9, 7)), col = "#99555555", border = NA)
+# first high-quality microscope from Carl Zeiss # no visible effect
+# polygon(c(c(1872:1873),rev(c(1872:1873))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+# first electrone microscope from Ernst Ruska and Max Knoll # no visible effect
+# polygon(c(c(1931:1932),rev(c(1931:1932))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
+# publication of Grundzüge einer Theorie der pyhlogenetischen Systematik
+polygon(c(c(1950:1951), rev(c(1950:1951))), c(rep(0, 2), rep(1.9, 2)), col = "#55559955", border = NA)
+# publication of Illustrations of the Zoology of South Africa
+polygon(c(c(1838:1839), rev(c(1838:1839))), c(rep(0, 2), rep(1.9, 2)), col = "#55559955", border = NA)
+abline(h = 1.5, lty = 2)
+for (i in seq_len(nrow(speeds) - 10)) {
+	if (i > 10) {
+		segments(groupsData$year[i], 1.5, groupsData$year[i], 1.5 - sum(speeds[i, ] == -1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3, lwd = 1.1)
+		segments(groupsData$year[i], 1.5, groupsData$year[i], 1.5 + sum(speeds[i, ] == 1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3, lwd = 1.1)
+		if (sum(speeds[i, ] == -1) > 0.4 * max(rowSums(speeds == -1), rowSums(speeds == 1)) &
+			sum(speeds[i - 1, ] == -1) <= 0.4 * max(rowSums(speeds == -1), rowSums(speeds == 1))) {
+			text(groupsData$year[i] - 1, 1.5 - sum(speeds[i, ] == -1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3 - 0.14, groupsData$year[i], adj = 0, srt = 90, cex = 0.9)
+		}
+		if (sum(speeds[i, ] == 1) > 0.65 * max(rowSums(speeds == -1), rowSums(speeds == 1)) &
+			sum(speeds[i - 1, ] == 1) <= 0.65 * max(rowSums(speeds == -1), rowSums(speeds == 1))) {
+			text(groupsData$year[i] - 1, 1.5 + sum(speeds[i, ] == 1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3 + 0.02, groupsData$year[i], adj = 0, srt = 90, cex = 0.9)
+		}
+	}
+}
+# dev.off()
 
 # 4 Approximate distribution of description dates using functions##################################
 nextScript <- NULL
@@ -1746,8 +1814,8 @@ zeros <- rep(0, nrow(groupsData))
 
 i <- 24
 par(parBackup)
-# pdf("description history fits_new.pdf", width = 11.7, height = 8.3)
-# plot all groups separately with all approximation functions
+# pdf("cumulative description fits.pdf", width = 11.7, height = 8.3)
+# plot all groups separately showing only the normal distribution approximation
 xseq <- seq(from = 0, to = max(groupsData$year) - min(groupsData$year), len = 50)
 for (i in groupsVec) {
 	plot(NULL,
@@ -1765,7 +1833,7 @@ for (i in groupsVec) {
 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
 	scale <- 30 / (diff(range(groupsData$year)) / diff(c(0, 1)))
 	rasterImage(img, 1765, log(2001) / max(log(groupsData + 1)), 1785, log(2001) / max(log(groupsData + 1)) + scale)
-	for (j in 1:3) {
+	for (j in 2) {
 		# shade(apply(mu, 2, PI), xseq, col = j + 1)
 		if (j != 2) {
 			mu <- link(m[[j]][[i]], data = list(Y = xseq))
@@ -1773,15 +1841,20 @@ for (i in groupsVec) {
 			# for normal distributions, it was necessary to scale the year variable to get good results
 			mu <- link(m[[j]][[i]], data = list(Y = standardize(xseq), minY = min(scale(xseq))))
 		}
-		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = j + 1)
+		# lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = j + 1)
+		if (groupsMeta$col[i] != "black") {
+			lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "black")
+		} else {
+			lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "red")
+		}
 	}
-	legend("bottomright",
-		legend = c("custom Bertalanffy", "normal distribution", "Gompertz"),
-		lwd = 3, col = 2:4, bg = "white"
-	)
+	# 	legend("bottomright",
+	# 		legend = c("custom Bertalanffy", "normal distribution", "Gompertz"),
+	# 		lwd = 3, col = 2:4, bg = "white"
+	# 	)
 }
 
-# plot all on one page only showing the normal distribution approximation
+# plot all on one page showing only the normal distribution approximation
 par(oma = c(5, 5, 1, 1))
 par(mar = c(0, 0, 0, 0))
 par(mfrow = c(5, 10))
@@ -1796,7 +1869,11 @@ for (i in groupsVec) {
 	)
 	# for normal distributions, it was necessary to scale the year variable to get good results
 	mu <- link(m[[2]][[i]], data = list(Y = standardize(xseq), minY = min(scale(xseq))))
-	lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "#999999", lty = 1)
+	if (groupsMeta$col[i] != "black") {
+		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "black", lty = 1)
+	} else {
+		lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "red", lty = 1)
+	}
 	text(1800, log(5001) / max(log(groupsData + 1)), labels = groupsMeta$name[i], adj = c(0, 1))
 	text(1800, log(1501) / max(log(groupsData + 1)), labels = colSums(groupsData)[i + 1], adj = c(0, 1))
 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
@@ -1884,7 +1961,6 @@ calcG <- function(k, a, b, x) {
 funNames <- c("Betalanffy", "normal", "Gompertz")
 funCoefs <- data.table(group = groupsMeta$name)
 vars <- c("estFutureDesc", "tenPercDesc", "maxDescPace", "descVar")
-
 
 for (i in seq_along(funNames)) {
 	# estimated future descriptions relative to current descriptions
@@ -1982,11 +2058,11 @@ groupsResponses <- cbind(groupsMeta, funCoefs[, ..selCols])
 colnames(groupsResponses) <- sub("_normal", "", colnames(groupsResponses))
 rmCols <- c("file", "color", "finalAuthorData")
 groupsResponses[, (rmCols) := NULL]
-fwrite(groupsResponses, file = "groupsResponses.txt")
+# fwrite(groupsResponses, file = "groupsResponses.txt")
 
 # plot an example on one page to explain the fitting process
-# pdf("description fit example.pdf", width = 11.7, height = 8.3)
-i <- 9
+pdf("cumulative description fit example.pdf", width = 11.7, height = 8.3)
+i <- 21
 par(parBackup)
 par(mar = c(5.1, 5.1, 4.1, 2.1))
 plot(NULL,
@@ -2010,20 +2086,20 @@ lines(xseq + min(groupsData$year), apply(mu, 2, mean), lwd = 3, col = "black")
 # add time until 10% found
 abline(h = 0.1, col = "red", lwd = 2)
 # add inflection point
-xMax <- coefs[[2]][3, i] - coefs[[2]][2, i]
-st <- standardize(groupsData$year - min(groupsData$year))
-xMax[xMax > max(st)] <- max(st)
-xMax <- xMax * attr(st, "scaled:scale") + attr(st, "scaled:center") + 1753
-abline(v = xMax, col = "red", lwd = 2)
+# xMax <- coefs[[2]][3, i] - coefs[[2]][2, i]
+# st <- standardize(groupsData$year - min(groupsData$year))
+# xMax[xMax > max(st)] <- max(st)
+# xMax <- xMax * attr(st, "scaled:scale") + attr(st, "scaled:center") + 1753
+# abline(v = xMax, col = "red", lwd = 2)
 # add maximum
 abline(h = funCoefs$estFutureDesc_normal[i], col = "red", lwd = 2)
 rasterImage(img, 1755, .85, 1785, .85 + scale)
 text(1790, .86 + scale / 2, labels = groupsMeta$name[i], adj = c(0, 0.5), cex = 1.5)
-# dev.off()
+dev.off()
 
-# show estimates of response variables extracted from curves
+# show estimates of curve parameters
 
-# pdf("response variables.pdf", width = 8.3, height = 11.7)
+# pdf("curve parameters.pdf", width = 8.3, height = 11.7)
 # estimated future descriptions relative to current descriptions
 par(mfrow = c(4, 3))
 par(oma = c(0, 1, 4, 1))
@@ -2111,7 +2187,7 @@ for (i in seq_len(ncol(coefs[[1]]))) {
 
 # plot numbers and groups
 par(parBackup)
-# pdf("numbers and groups.pdf")
+# pdf("groups numbers.pdf")
 plot(NULL, xlim = c(0, 5), ylim = c(0, 47), xlab = "", ylab = "", xaxt = "n", yaxt = "n")
 for (i in groupsVec) {
 	img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
@@ -2120,70 +2196,6 @@ for (i in groupsVec) {
 	rasterImage(img, 1.452, i - 1, 1.55, i)
 	text(2, i - 0.5, groupsMeta$name[i], adj = 0, col = groupsMeta$color[i], cex = 0.7)
 	text(1, i - 0.5, i, col = groupsMeta$color[i], cex = 0.7)
-}
-# dev.off()
-
-# get a measure of decrease in velocity due to idiosyncratic events (wars, other crisis)
-# pdf("description pace anomalies.pdf",width=11.7,height=8.3)
-plot(NULL, ylim = c(0, 1.9), xlim = range(groupsData$year), type = "l", xlab = "year", ylab = "", yaxt = "n")
-numMax <- max(rowSums(speeds == -1), rowSums(speeds == 1))
-axis(2, c(0, 0.5, 1, 1.5 + c(0, 1 / 6, -1 / 6, 1 / 3, -1 / 3)), c(0, 0.5, 1, 0, numMax / 2, numMax / 2, numMax, numMax))
-text(1724, 0.5, "descriptions", srt = 90, cex = 1.2, xpd = TRUE)
-text(1724, 1.5, "description pace anomalies", srt = 90, cex = 1.2, xpd = TRUE)
-abline(h = 1.1)
-for (i in seq_len(ncol(groupsData) - .8)) {
-	lines(groupsData$year, cumsum(groupsData[[i + 1]]) / sum(groupsData[[i + 1]]), col = "grey")
-}
-lines(groupsData$year, cumsum(rowSums(groupsData[, -1])) / sum(groupsData[, -1]), lwd = 2)
-# Franco-German war
-polygon(c(c(1870:1871), rev(c(1870:1871))), c(rep(0, 2), rep(1.9, 2)), col = "#99555555", border = NA)
-# first world war
-polygon(c(c(1914:1918), rev(c(1914:1918))), c(rep(0, 5), rep(1.9, 5)), col = "#99555555", border = NA)
-# second world war
-polygon(c(c(1939:1945), rev(c(1939:1945))), c(rep(0, 7), rep(1.9, 7)), col = "#99555555", border = NA)
-# first high-quality microscope from Carl Zeiss # no visible effect
-# polygon(c(c(1872:1873),rev(c(1872:1873))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
-# first electrone microscope from Ernst Ruska and Max Knoll # no visible effect
-# polygon(c(c(1931:1932),rev(c(1931:1932))),c(rep(0,2),rep(1.9,2)),col="#55559955", border=NA)
-# publication of Grundzüge einer Theorie der pyhlogenetischen Systematik
-polygon(c(c(1950:1951), rev(c(1950:1951))), c(rep(0, 2), rep(1.9, 2)), col = "#55559955", border = NA)
-# publication of Illustrations of the Zoology of South Africa
-polygon(c(c(1838:1839), rev(c(1838:1839))), c(rep(0, 2), rep(1.9, 2)), col = "#55559955", border = NA)
-speeds <- matrix(0, nrow(groupsData), ncol(groupsData) - 1)
-for (i in seq_len(ncol(groupsData) - 1)) {
-	for (j in seq_along(groupsData[[i + 1]])) {
-		if (j > 5 & j < nrow(groupsData)) {
-			if (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) < 1 / 2 * mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)
-			# & any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE)
-			# & groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
-			& (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) - mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)) / sum(groupsData[[i + 1]]) < -0.001
-			) {
-				speeds[j, i] <- -1
-			}
-			if (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) > 2 * mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)
-			# & any(groupsData[[i + 1]][j+c(-5:4)]/sum(groupsData[[i + 1]]) > .001, na.rm=TRUE)
-			# & groupsData[[i + 1]][j] < mean(groupsData[[i + 1]][groupsData[[i + 1]] > 0])
-			& (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) - mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)) / sum(groupsData[[i + 1]]) > 0.001
-			) {
-				speeds[j, i] <- 1
-			}
-		}
-	}
-}
-abline(h = 1.5, lty = 2)
-for (i in seq_len(nrow(speeds) - 10)) {
-	if (i > 10) {
-		segments(groupsData$year[i], 1.5, groupsData$year[i], 1.5 - sum(speeds[i, ] == -1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3, lwd = 1.1)
-		segments(groupsData$year[i], 1.5, groupsData$year[i], 1.5 + sum(speeds[i, ] == 1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3, lwd = 1.1)
-		if (sum(speeds[i, ] == -1) > 0.4 * max(rowSums(speeds == -1), rowSums(speeds == 1)) &
-			sum(speeds[i - 1, ] == -1) <= 0.4 * max(rowSums(speeds == -1), rowSums(speeds == 1))) {
-			text(groupsData$year[i] - 1, 1.5 - sum(speeds[i, ] == -1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3 - 0.14, groupsData$year[i], adj = 0, srt = 90, cex = 0.9)
-		}
-		if (sum(speeds[i, ] == 1) > 0.65 * max(rowSums(speeds == -1), rowSums(speeds == 1)) &
-			sum(speeds[i - 1, ] == 1) <= 0.65 * max(rowSums(speeds == -1), rowSums(speeds == 1))) {
-			text(groupsData$year[i] - 1, 1.5 + sum(speeds[i, ] == 1) / max(rowSums(speeds == -1), rowSums(speeds == 1)) / 3 + 0.02, groupsData$year[i], adj = 0, srt = 90, cex = 0.9)
-		}
-	}
 }
 # dev.off()
 
@@ -2589,9 +2601,7 @@ namesDict[, searchName := sub("^Other\\s+", "", searchName)]
 namesDict[, searchName := sub("\\s([[:upper:]]|\\().*", "", searchName)]
 namesDict[!validUTF8(searchName), searchName := iconv(searchName[!validUTF8(searchName)], from = "CP1252", to = "UTF8")]
 Encoding(namesDict$searchName) <- "unknown"
-for (i in seq_len(nrow(substAcc))) {
-	namesDict[, searchName := gsub(substAcc$UTF8[i], substAcc$ASCII[i], searchName, fixed = TRUE)]
-}
+namesDict <- repairNonASCII(namesDict, "searchName")
 for (i in seq_len(nrow(namesDict))) {
 	if (i %% 100 == 0) print(i)
 	if (i > 0) {
@@ -2639,9 +2649,7 @@ namesDict[, searchName := gsub("-sp$", "", searchName)]
 namesDict[, searchName := gsub("\\s+and\\s.*$", "", searchName)]
 namesDict[!validUTF8(searchName), searchName := iconv(searchName[!validUTF8(searchName)], from = "CP1252", to = "UTF8")]
 Encoding(namesDict$searchName) <- "unknown"
-for (i in seq_len(nrow(substAcc))) {
-	namesDict[, searchName := gsub(substAcc$UTF8[i], substAcc$ASCII[i], searchName, fixed = TRUE)]
-}
+namesDict <- repairNonASCII(namesDict, "searchName")
 for (i in seq_len(nrow(namesDict))) {
 	if (i %% 100 == 0) print(i)
 	if (is.na(namesDict$order[i]) && is.na(namesDict$class[i]) && is.na(namesDict$phylum[i])) {
@@ -3026,10 +3034,7 @@ for (i in which(is.na(resVern$canonicalName))) {
 		}
 		colnames(resTable) <- resVars
 		# substitute non-ASCII characters
-		for (k in seq_len(nrow(substAcc))) {
-			resTable[, vernacularNames :=
-				gsub(substAcc$UTF8[k], substAcc$ASCII[k], vernacularNames, fixed = TRUE)]
-		}
+		resTable <- repairNonASCII(resTable, "vernacularNames")
 		# remove hyphens
 		resTable[, vernacularNames := gsub("-", " ", tolower(vernacularNames))]
 		resTable[, nameFound := FALSE]
@@ -3636,7 +3641,7 @@ model1 <- "
 		DV ~ d * B + e * A + f * O + g * S + h * AQ
 		TT ~ ii * B + j * A + k * O + l * S + m * AQ + n * DV
 		# MP ~ o * B + p * A + q * O + r * S + s * AQ + t * DV
-		EF ~ u * B + v * A + w * O + x * S + y * AQ + z * DV
+		EF ~ o * B + p * A + q * O + r * S + s * AQ + t * DV
 		"
 fit1 <- bsem(model1, data = dats, sample = 2000)
 summary(fit1)
@@ -4391,5 +4396,41 @@ lines(lep2$V1, lep2$V2, lwd = 2, col = "red")
 plot(NULL, xlim = range(bryo1$V1), ylim = c(0, max(bryo1$V2, bryo2$V2)), xlab = "year", ylab = "descriptions")
 lines(bryo1$V1, bryo1$V2, lwd = 2)
 lines(bryo2$V1, bryo2$V2, lwd = 2, col = "red")
-
 # looks good
+
+# 12 Create additional graphs showing relationships between specific variables#####################
+nextScript <- NULL
+
+# load in libraries
+library(data.table) # handle large datasets
+
+# clear workspace
+rm(list = ls())
+
+# set working directory
+setwd(paste0(.brd, "taxon description dates"))
+
+dat <- fread("groupsVariables.txt")
+
+str(dat)
+
+pdf("Bivariate relationships.pdf", width = 11.7, height = 8.3)
+
+par(mfrow = c(2, 2))
+
+plot(log(LG) ~ log(L), data = dat, xlab = "log(literature occurrences)", ylab = "log(Google hits)")
+res <- summary(lm(log(LG) ~ log(L + 1), data = dat))
+abline(coef(res)[, 1], lwd = 2)
+text(12, 16.5, bquote(R^2 == .(round(res$r.squared, 3))))
+
+plot(EF ~ B, data = dat, xlab = "body size", ylab = "future descriptions ratio")
+res <- summary(lm(EF ~ B, data = dat))
+abline(coef(res)[, 1], lwd = 2, lty = 2)
+text(1.5, 2, bquote(R^2 == .(round(res$r.squared, 3))))
+
+plot(EF ~ S, data = dat, xlab = "soil-dwelling/endoparasitic", ylab = "future descriptions ratio")
+res <- summary(lm(EF ~ S, data = dat))
+abline(coef(res)[, 1], lwd = 2, lty = 2)
+text(4.5, 2, bquote(R^2 == .(round(res$r.squared, 3))))
+
+dev.off()
