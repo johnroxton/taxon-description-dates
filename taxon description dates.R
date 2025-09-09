@@ -68,7 +68,7 @@ plot(table(lcvp1$year),
 	col = brewer.pal(8, "Accent")[1]
 )
 
-# The data in LCVP are likely mostly no first descriptions but dates of taxonomic revisions.
+# The data in LCVP are mostly no first descriptions but dates of taxonomic revisions.
 
 colnames(lcvp2) <- c("year", "descriptions")
 lcvp2 <- lcvp2[year > 1753]
@@ -76,8 +76,6 @@ lcvp2 <- lcvp2[year < 2023]
 
 # add data from Martin
 lines(lcvp2, type = "o", col = brewer.pal(8, "Accent")[2], lwd = 2)
-
-# LifeGate's aggregated data does not allow for much analyses.
 
 # 2 Reproduce the analyses from "Trends in botanical exploration in Nigeria forecast over##########
 #   1000 yet undescribed vascular plant species", https://doi.org/10.1093/aob/mcad106##############
@@ -357,7 +355,7 @@ aNI[, (checkCols) := lapply(.SD, function(x) {
 	x
 }), .SDcols = (checkCols)]
 
-# Think about what to extract. Remember that eventually, we need the year of the description.
+# We need the year of the description.
 # It may be enough to have the IPNI-ID of the record, but often, that will not come by itself.
 # Probably, it is best to record the IPNI-ID if available and the name with authors otherwise.
 
@@ -550,7 +548,8 @@ wcvpn[
 wcvpn[grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == "", first_authors := resAll[accIpniid]$oriAuthors]
 
 # check taxon publication year for errors
-# in general, the first date mentioned will be the correct, except for three dates mentioned, in which case its the last
+# In general, the first date mentioned will be the correct,
+# except for three dates mentioned, in which case it is the last.
 wcvpn[
 	(first_publication_date < 1753 | first_publication_date > 2023) & nchar(first_publication_date) == 12,
 	first_publication_date :=
@@ -606,18 +605,19 @@ dat[, revAuth := sapply(year, function(x) {
 })]
 lines(dat$year, dat$revAuth, col = "green", lwd = 2)
 
-# the number of descriptions is higher correlated with the number of authors
-# working on descriptions at the time than the number of authors
-# working on descriptions and revisions
-# this is not suprising given that the high numbers of first descriptions require high numbers
-# of first description authors in general
+# The number of descriptions is higher correlated with the number of authors
+# working on descriptions at the time than the number of authors working on
+# descriptions and revisions.
+# This is not suprising given that the high numbers of first descriptions
+# require high numbers of first description authors in general.
 
-# the predictor variables in the Nigeria study are:
+# The predictor variables in the Nigeria study are:
 # 1) last year (autoregressive term)
 # 2) year (linear function)
 # 3) number of authors describing species in the actual year
-# it is important to know that the number of species described per year is wrong in the Nigeria study,
-# because they did not use the publication date of basionyms, but of the new names of certain species
+# It is important to know that the number of species described per year is
+# wrong in the Nigeria study, because they did not use the publication date
+# of basionyms, but of the new names of certain species.
 
 dat[, pubAuth := sapply(year, function(x) {
 	length(unique(unlist(strsplit(wcvpn[first_publication_date == x]$first_authors, split = ",|&|e\\x.?"))))
@@ -637,7 +637,7 @@ mean(dat$pubAuth) # 7.5
 
 # While I could try to redo the analysis from Bello et al., there is not much to learn here, as it suffers
 # from the error that the long-term trend in species descriptions is likely driven by the descriptions from
-# Linne in 1753, and this data point needs to be excluded.
+# Linnaeus in 1753, and this data point needs to be excluded.
 
 # create models using the brms package
 str(dat)
@@ -862,6 +862,7 @@ setwd(paste0(.brd, "taxon description dates"))
 groupsMeta <- data.table(file = list.files(path = "Arten pro Jahr beschrieben"))
 groupsMeta <- groupsMeta[!grepl("_CoL_GBIF", groupsMeta$file)]
 groupsMeta[, name := sub(".* ", "", sub("\\s+beschriebene.*", "", file))]
+
 # create regular expression to define groups receiving same colors (monophyletic groups of groups)
 # Chordata is the only group that receives a distinguished color
 groupRegs <- c(
@@ -936,10 +937,10 @@ taxa[, search_string := paste0(toupper(substr(search_string, 1, 1)), sub("^.", "
 # taxa[!ott_in_tree] # cannot be found
 # the reason for taxa not to be found is that they are paraphyletic (= include other
 # taxa), not monophyletic
-# a workaround is to accept this and just use the node in the tree that contains all
-# taxa from the group, and some others. however, this may lead to some taxa not being nodes
-# anymore. it is therefore better to replace taxa with species belonging to them (or other lower, more
-# specific taxa ranks)
+# A workaround is to accept this and just use the node in the tree that contains all
+# taxa from the group, and some others. However, this may lead to some taxa not being nodes
+# anymore. It is therefore better to replace taxa with species belonging to them
+# (or other lower, more specific taxa ranks).
 
 # create phylogenetic tree
 # pt <- tol_induced_subtree(ott_id = taxa$ott_id, label_format = "name")
@@ -2392,10 +2393,10 @@ for (i in seq_along(groupsGBIFTaxonKeys)) {
 # }
 # sort(setdiff(unique(unlist(resTestCountry)),unique(unlist(resTestContinent))))
 # sort(setdiff(unique(unlist(resTestContinent)),unique(unlist(resTestCountry))))
-# more can be gained by using country data. apparently, there is more information on countries than on
-# continents. however, i will not run this again for now because we also lose occurrences. additionally, we
+# More can be gained by using country data. Apparently, there is more information on countries than on
+# continents. However, i will not run this again for now because we also lose occurrences. Additionally, we
 # would have to assign continents to countries and calculate everything for 253 instead of 7 areas.
-# for vascular plants, we would win 7314 species and lose 133. for haptophyta, we would win 133 and lose 2.
+# for vascular plants, we would win 7314 species and lose 133. For Haptophyta, we would win 133 and lose 2.
 # for beetles, we would gain 8569 and lose 315.
 
 ## check effect of being marine with the blue whale as an example
@@ -2467,7 +2468,7 @@ for (i in seq_len(nrow(resSpecsTable))) {
 	resSpecsTable[i, world := length(w) - 1]
 	resSpecsTable[i, world_coords := length(wc) - 1]
 	resSpecsTable[i, world_coords_land_and_sea := length(resSpecs[[i]][[8]]) - 1]
-	resSpecsTable[i, seaborne := round(length(setdiff(resSpecs[[i]][[8]], wc)) / world_coords, 1)]
+	resSpecsTable[i, ratio_seaborne := round(length(setdiff(resSpecs[[i]][[8]], wc)) / world_coords, 1)]
 }
 # remove myriapod and crustaceen sub-groups
 resSpecsTable <- resSpecsTable[!name %in% c(myriapods, crustaceans)]
@@ -2476,8 +2477,8 @@ resSpecsTable <- resSpecsTable[!name %in% c(myriapods, crustaceans)]
 resSpecsTable[, ratio := round(europe_north_america / world, 2)]
 resSpecsTable[, ratio_coords := round(europe_north_america_coords / world_coords, 2)]
 
-# check taxa with large values for seaborne
-resSpecsTable[seaborne > 0.1, c("name", "seaborne", "ratio", "ratio_coords")]
+# check taxa with large values for ratio_seaborne
+resSpecsTable[ratio_seaborne > 0.1, c("name", "ratio_seaborne", "ratio", "ratio_coords")]
 
 # reorder table
 resSpecsTable[, oriOrder := sapply(resSpecsTable$name, function(x) which(colnames(groupsData) == x)) - 1]
