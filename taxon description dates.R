@@ -1,3 +1,5 @@
+# Taxonomic description curves of major lineages are influenced by biological and societal factors
+# 
 # These scripts use the taxon description dates data from LifeGate assembled by
 # Martin Freiberg to visualize cumulative descriptions, calculate fitted curves, and link
 # them to potential predictors.
@@ -5,9 +7,9 @@
 # process of a paper about species numbers in Nigeria is examined.
 #
 # After submission to Scientific Reports, a reviewer asked for the extension of the distribution
-# in Europe and North America to the whole holarctic (i.e. including Russia). Additionally, the
-# reviewer asked for an aggregated analysis joining insects into a class. This has been
-# incorporated into the scripts.
+# in Europe and North America to the whole Northern hemisphere (i.e. including Russia, but
+# excluding Mexico). Additionally, the reviewer asked for an aggregated analysis joining
+# insects into a class. This has been incorporated into the scripts.
 #
 # Author: David Schellenberger Costa
 ###################################################################################################
@@ -618,7 +620,7 @@ treemap(dtf,
 speeds <- matrix(0, nrow(groupsData), ncol(groupsData) - 1)
 for (i in seq_len(ncol(groupsData) - 1)) {
 	for (j in seq_along(groupsData[[i + 1]])) {
-		if (j > 5 & j < nrow(groupsData)) {
+		if (j > 5 && j < nrow(groupsData)) {
 			if (mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) < 1 / 2 * mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE) &&
 				(mean(groupsData[[i + 1]][j + c(0:4)], na.rm = TRUE) - mean(groupsData[[i + 1]][j - (1:5)], na.rm = TRUE)) / sum(groupsData[[i + 1]]) < -0.001
 			) {
@@ -1142,7 +1144,7 @@ zeros <- rep(0, nrow(groupsData))
 
 i <- 24
 par(parBackup)
-pdf("cumulative description fits.pdf", width = 11.7, height = 8.3)
+# pdf("cumulative description fits.pdf", width = 11.7, height = 8.3)
 # plot all groups separately showing only the normal distribution approximation
 xseq <- seq(from = 0, to = max(groupsData$year) - min(groupsData$year), len = 50)
 for (i in groupsVec) {
@@ -1218,7 +1220,7 @@ for (i in groupsVec) {
 }
 mtext("year", 1, 3, at = 1450)
 mtext("cumulative descriptions", 2, 69, at = 2.7, xpd = TRUE)
-dev.off()
+# dev.off()
 # save(list=c("coefs","m"),file="models3.RData")
 
 # interpret coefficients
@@ -2104,12 +2106,12 @@ abline(0, 1)
 text(colSums(groupsData[, -"year"]), resSpecsTable$world_country, seq_len(nrow(resSpecsTable)))
 
 # compare continents and countries
-pdf("Comparison occurrence ratios continents vs countries.pdf")
+# pdf("Comparison occurrence ratios continents vs countries.pdf")
 par(mfrow = c(1, 1))
 plot(ratio_cont ~ ratio_country, data = resSpecsTable, xlab = "(Europe, USA, Canada, Russia) / world", ylab = "(Europe, North America) / world")
 abline(v = seq(0, 1, 0.1), h = seq(0, 1, 0.1), lty = 2)
 abline(0, 1)
-dev.off()
+# dev.off()
 cor(resSpecsTable$ratio_cont, resSpecsTable$ratio_country)
 # write data
 fwrite(resSpecsTable, "groupsOccurrences_v2.txt")
@@ -3395,7 +3397,7 @@ summary(fit1)
 postSamples1 <- standardizedPosterior(fit1, type = "std.lv")
 len1 <- sum(fit1@ParTable$op == "~")
 
-pdf("Model 1 insects coefficients_v2.pdf", width = 11.7, height = 8.3)
+# pdf("Model 1 insects coefficients_v2.pdf", width = 11.7, height = 8.3)
 par(mfrow = c(1, 1))
 # plot(NULL, xlim = c(-1.5, 1.5), ylim = c(0, 7.75), xlab = "", ylab = "", cex.lab = 1.5, cex.axis = 1.5)
 plot(NULL, xlim = c(-1.5, 1.5), ylim = c(0, 3.75), xlab = "", ylab = "", cex.lab = 1.5, cex.axis = 1.5)
@@ -3415,7 +3417,7 @@ for (i in seq_len(len1)) {
 	# show variable name
 	text(fit1@ParTable$est[i], 1 / (fit1@ParTable$se[i] * sqrt(2 * pi)) * 1.05, fit1@ParTable$label[i], font = 2)
 }
-dev.off()
+# dev.off()
 
 # remove those coefficients that have zero within 90% PI
 testPI <- sapply(seq_len(sum(fit1@ParTable$label != "")), function(x) qnorm(c(.1, .9), fit1@ParTable$est[x], fit1@ParTable$se[x]))
@@ -3615,10 +3617,10 @@ dat <- rbind(data.table(
 	CoL = sum(dat[group %in% groupsMeta[color == "#E31A1C"]$name]$CoL, na.rm = TRUE)
 ), dat)
 par()$mar
-pdf(paste0("Comparison of LifeGate, GBIF, and CoL species numbers_", Sys.Date(), ".pdf"), width = 8.3, height = 11.7)
+# pdf(paste0("Comparison of LifeGate, GBIF, and CoL species numbers_", Sys.Date(), ".pdf"), width = 8.3, height = 11.7)
 par(mar = c(5.1, 8.1, 4.1, 2.1))
 barplot(t(dat[, -"group"]), names.arg = dat$group, las = 2, beside = TRUE, legend.text = TRUE, horiz = TRUE, las = 1)
-dev.off()
+# dev.off()
 
 # compare insect species numbers (number taken from CoL directly)
 dat[1] # 1184055 in LifeGate, 1114143 in GBIF, 994767 in CoL
@@ -3690,7 +3692,7 @@ CoLGetLowerRankNames <- function(taxon, taxonID, targetRank) {
 			targetRank, "&status=accepted"
 		))
 		print(paste0(j, "/", resPages, " - ", Sys.time()))
-		repeat{
+		repeat {
 			Sys.sleep(1) # let the page build
 			nameLinks <- remDr$findElements(using = "tag", value = "a")
 			if (j < resPages) {
