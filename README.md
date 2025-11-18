@@ -4,3 +4,5 @@ After submission to Scientific Reports, a reviewer asked for the extension of th
 insects into a class. This has been incorporated into the scripts.
 
 The corresponding data is published on zenodo.
+
+[![DOI](https://zenodo.org/badge/689399680.svg)](https://doi.org/10.5281/zenodo.17639993)
