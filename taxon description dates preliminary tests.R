@@ -50,9 +50,9 @@ lcvp1[`global Id` == 1339189] # check first entry because of warning
 
 # plot data
 plot(table(lcvp1$year),
-	type = "o", ylab = "revisions / descriptions",
-	xlab = "year", xlim = c(1754, 2023), xaxt = "n",
-	col = brewer.pal(8, "Accent")[1]
+    type = "o", ylab = "revisions / descriptions",
+    xlab = "year", xlim = c(1754, 2023), xaxt = "n",
+    col = brewer.pal(8, "Accent")[1]
 )
 
 # The data in LCVP are mostly no first descriptions but dates of taxonomic revisions.
@@ -87,153 +87,153 @@ source("taxonomy author normalization.R")
 
 # function to retrieve basionyms from POWO or year of first publication
 POWOSearch <- function(ipniid, basionymSearch = TRUE, authCompThr = 0.4) {
-	resFull <- readLines(paste0("https://powo.science.kew.org/taxon/", ipniid))
-	if (basionymSearch == TRUE) {
-		if (any(grepl("Homotypic Synonyms", resFull))) {
-			targetAuth <- sub("\\s*</small>.*", "", sub(".*<small>\\s*", "", resFull[grepl("c-summary__heading p-xl", resFull)]))
-			targetAuth <- sub("\\(", "", sub("\\).*", "", targetAuth))
-			resFull <- resFull[grep("Homotypic Synonyms", resFull):length(resFull)]
-			resFull <- resFull[1:grep("</ul>$", resFull)[1]]
-			resFull <- resFull[grepl("^\\s*<li", resFull)]
-			synAuth <- sub("\\s*</a>.*", "", sub(".*em>\\s*", "", resFull))
-			authComp <- colSums(sapply(synAuth, function(x) authorMatch(targetAuth, x)))
-			if (any(authComp > authCompThr)) {
-				resFull <- resFull[order(authComp, decreasing = TRUE)[1]]
-				oriIpniid <- sub("\".*", "", sub(".*:names:", "", resFull))
-				oriName <- gsub("<[^<>]+>", "", sub("</em>[^<>]+</a>.*", "", sub(".*><em lang='la'>", "", resFull)))
-				oriAuthors <- synAuth[order(authComp, decreasing = TRUE)[1]]
-				oriYear <- gsub("\\D", "", regmatches(resFull, regexpr("\\(\\d{4}\\)", resFull)))
-				return(c(oriIpniid, oriName, oriAuthors, oriYear))
-			} else {
-				return(rep(NA, 4))
-			}
-		} else {
-			return(rep(NA, 4))
-		}
-	} else {
-		res <- resFull[grepl("First published", resFull)]
-		res <- as.numeric(gsub("\\D", "", regmatches(res, regexpr("\\(\\d{4}\\)", res))))
-		return(res)
-	}
+    resFull <- readLines(paste0("https://powo.science.kew.org/taxon/", ipniid))
+    if (basionymSearch == TRUE) {
+        if (any(grepl("Homotypic Synonyms", resFull))) {
+            targetAuth <- sub("\\s*</small>.*", "", sub(".*<small>\\s*", "", resFull[grepl("c-summary__heading p-xl", resFull)]))
+            targetAuth <- sub("\\(", "", sub("\\).*", "", targetAuth))
+            resFull <- resFull[grep("Homotypic Synonyms", resFull):length(resFull)]
+            resFull <- resFull[1:grep("</ul>$", resFull)[1]]
+            resFull <- resFull[grepl("^\\s*<li", resFull)]
+            synAuth <- sub("\\s*</a>.*", "", sub(".*em>\\s*", "", resFull))
+            authComp <- colSums(sapply(synAuth, function(x) authorMatch(targetAuth, x)))
+            if (any(authComp > authCompThr)) {
+                resFull <- resFull[order(authComp, decreasing = TRUE)[1]]
+                oriIpniid <- sub("\".*", "", sub(".*:names:", "", resFull))
+                oriName <- gsub("<[^<>]+>", "", sub("</em>[^<>]+</a>.*", "", sub(".*><em lang='la'>", "", resFull)))
+                oriAuthors <- synAuth[order(authComp, decreasing = TRUE)[1]]
+                oriYear <- gsub("\\D", "", regmatches(resFull, regexpr("\\(\\d{4}\\)", resFull)))
+                return(c(oriIpniid, oriName, oriAuthors, oriYear))
+            } else {
+                return(rep(NA, 4))
+            }
+        } else {
+            return(rep(NA, 4))
+        }
+    } else {
+        res <- resFull[grepl("First published", resFull)]
+        res <- as.numeric(gsub("\\D", "", regmatches(res, regexpr("\\(\\d{4}\\)", res))))
+        return(res)
+    }
 }
 
 # function to retrieve basionyms from tropicos
 tropicosBasionym <- function(name, authCompThr = 0.4) {
-	if (!("authorMatch" %in% ls(globalenv()))) {
-		print("taxonomy help functions need to be sourced first.")
-		return(c(NA, NA, NA))
-	}
-	# account for issues with infraspecies
-	if (grepl("\\.", name)) tempName <- sub("\\s*\\S*\\..*", "", name) else tempName <- name
-	foundTro <- tp_search(tempName)
-	if (tempName != name) foundTro <- foundTro[foundTro$scientificname == name, ]
-	if (nrow(foundTro) > 1) {
-		nw1 <- length(gregexpr("\\s", name))
-		nw2 <- sapply(gregexpr("\\s", foundTro$scientificname), length)
-		foundTro <- foundTro[nw2 == nw1, ][1, ]
-	}
-	if ("nameid" %in% colnames(foundTro)) {
-		res <- tp_synonyms(foundTro$nameid)
-		if (res$accepted$nameid != "no syns found") {
-			nchars1 <- nchar(res$accepted$scientificname)
-			nchars2 <- nchar(res$accepted$scientificnamewithauthors)
-			targetAuth <- substr(res$accepted$scientificnamewithauthors, nchars1 + 2, nchars2)
-			targetAuth <- sub("\\(", "", sub("\\).*", "", targetAuth))
-			nchars1 <- nchar(res$synonyms$scientificname)
-			nchars2 <- nchar(res$synonyms$scientificnamewithauthors)
-			synAuth <- substr(res$synonyms$scientificnamewithauthors, nchars1 + 2, nchars2)
-			authComp <- colSums(sapply(synAuth, function(x) authorMatch(targetAuth, x)))
-			if (any(authComp > authCompThr)) {
-				name <- res$synonyms$scientificname[order(authComp, decreasing = TRUE)[1]]
-				# account for issues with infraspecies
-				if (grepl("\\.", name)) tempName <- sub("\\s*\\S*\\..*", "", name) else tempName <- name
-				res <- tp_search(tempName)
-				if (tempName != name) res <- res[res$scientificname == name, ]
-				if (nrow(res) > 1) {
-					nw1 <- length(gregexpr("\\s", name))
-					nw2 <- sapply(gregexpr("\\s", res$scientificname), length)
-					res <- res[nw2 == nw1, ][1, ]
-				}
-				return(c(foundTro$nameid, res$scientificname, res$author, res$displaydate))
-			} else {
-				return(c(foundTro$nameid, NA, NA, NA))
-			}
-		} else {
-			return(c(foundTro$nameid, NA, NA, NA))
-		}
-	} else {
-		return(rep(NA, 4))
-	}
+    if (!("authorMatch" %in% ls(globalenv()))) {
+        print("taxonomy help functions need to be sourced first.")
+        return(c(NA, NA, NA))
+    }
+    # account for issues with infraspecies
+    if (grepl("\\.", name)) tempName <- sub("\\s*\\S*\\..*", "", name) else tempName <- name
+    foundTro <- tp_search(tempName)
+    if (tempName != name) foundTro <- foundTro[foundTro$scientificname == name, ]
+    if (nrow(foundTro) > 1) {
+        nw1 <- length(gregexpr("\\s", name))
+        nw2 <- sapply(gregexpr("\\s", foundTro$scientificname), length)
+        foundTro <- foundTro[nw2 == nw1, ][1, ]
+    }
+    if ("nameid" %in% colnames(foundTro)) {
+        res <- tp_synonyms(foundTro$nameid)
+        if (res$accepted$nameid != "no syns found") {
+            nchars1 <- nchar(res$accepted$scientificname)
+            nchars2 <- nchar(res$accepted$scientificnamewithauthors)
+            targetAuth <- substr(res$accepted$scientificnamewithauthors, nchars1 + 2, nchars2)
+            targetAuth <- sub("\\(", "", sub("\\).*", "", targetAuth))
+            nchars1 <- nchar(res$synonyms$scientificname)
+            nchars2 <- nchar(res$synonyms$scientificnamewithauthors)
+            synAuth <- substr(res$synonyms$scientificnamewithauthors, nchars1 + 2, nchars2)
+            authComp <- colSums(sapply(synAuth, function(x) authorMatch(targetAuth, x)))
+            if (any(authComp > authCompThr)) {
+                name <- res$synonyms$scientificname[order(authComp, decreasing = TRUE)[1]]
+                # account for issues with infraspecies
+                if (grepl("\\.", name)) tempName <- sub("\\s*\\S*\\..*", "", name) else tempName <- name
+                res <- tp_search(tempName)
+                if (tempName != name) res <- res[res$scientificname == name, ]
+                if (nrow(res) > 1) {
+                    nw1 <- length(gregexpr("\\s", name))
+                    nw2 <- sapply(gregexpr("\\s", res$scientificname), length)
+                    res <- res[nw2 == nw1, ][1, ]
+                }
+                return(c(foundTro$nameid, res$scientificname, res$author, res$displaydate))
+            } else {
+                return(c(foundTro$nameid, NA, NA, NA))
+            }
+        } else {
+            return(c(foundTro$nameid, NA, NA, NA))
+        }
+    } else {
+        return(rep(NA, 4))
+    }
 }
 
 # function to extract the year from ipni table
 ipniTableYear <- function(name, authors) {
-	if (!("remDr" %in% ls(globalenv()))) {
-		print("Start an rsDriver instance first.")
-		return(c(NA, NA))
-	}
-	remDr$navigate(paste0("https://www.ipni.org/?q=", gsub(" ", "%20", name)))
-	repeat {
-		Sys.sleep(0.2)
-		res <- remDr$findElements(using = "class", value = "result")
-		if (length(res) > 0) {
-			break
-		} else {
-			res <- remDr$findElements(using = "class", value = "no-results")
-			if (length(res) > 0) {
-				return(NA)
-			}
-		}
-	}
-	bas <- which(sapply(res, function(x) grepl(authors, x$getElementAttribute("outerHTML")[[1]])))[1]
-	if (!is.na(bas)) {
-		year <- as.numeric(gsub("\\D", "", regmatches(
-			res[[bas]]$getElementAttribute("outerHTML")[[1]],
-			regexpr("\\(\\d{4}\\)", res[[bas]]$getElementAttribute("outerHTML")[[1]])
-		)))
-		return(year)
-	} else {
-		return(NA)
-	}
+    if (!("remDr" %in% ls(globalenv()))) {
+        print("Start an rsDriver instance first.")
+        return(c(NA, NA))
+    }
+    remDr$navigate(paste0("https://www.ipni.org/?q=", gsub(" ", "%20", name)))
+    repeat {
+        Sys.sleep(0.2)
+        res <- remDr$findElements(using = "class", value = "result")
+        if (length(res) > 0) {
+            break
+        } else {
+            res <- remDr$findElements(using = "class", value = "no-results")
+            if (length(res) > 0) {
+                return(NA)
+            }
+        }
+    }
+    bas <- which(sapply(res, function(x) grepl(authors, x$getElementAttribute("outerHTML")[[1]])))[1]
+    if (!is.na(bas)) {
+        year <- as.numeric(gsub("\\D", "", regmatches(
+            res[[bas]]$getElementAttribute("outerHTML")[[1]],
+            regexpr("\\(\\d{4}\\)", res[[bas]]$getElementAttribute("outerHTML")[[1]])
+        )))
+        return(year)
+    } else {
+        return(NA)
+    }
 }
 
 # function to extract the basionym from tropicos details
 # very slow due to very slow tropicos website
 tropicosDetailsBasionym <- function(nameid) {
-	if (!("remDr" %in% ls(globalenv()))) {
-		print("Start an rsDriver instance first.")
-		return(c(NA, NA))
-	}
-	remDr$navigate(paste0("https://tropicos.org/name/", nameid))
-	repeat {
-		Sys.sleep(2)
-		res <- remDr$findElements(using = "class", value = "control-group")
-		resYear <- remDr$findElements(using = "class", value = "section-group")
-		if (length(res) > 0 && length(resYear) > 0) break
-	}
-	for (i in seq_along(res)) {
-		if (grepl("Basionym:", res[[i]]$getElementAttribute("outerHTML")[[1]])) {
-			res <- res[[i + 1]]
-			break
-		}
-	}
-	for (i in seq_along(resYear)) {
-		if (grepl("Published In:", resYear[[i]]$getElementAttribute("outerHTML")[[1]])) {
-			resYear <- resYear[[i]]
-			break
-		}
-	}
-	if (length(res) == 1 && length(resYear) == 1) {
-		author <- sub("</a>.*", "", sub(".*</i>\\s*", "", res$getElementAttribute("outerHTML")[[1]]))
-		name <- gsub("</?i>", "", sub("[^<>]+</a>.*", "", sub(".*><i>\\s*", "", res$getElementAttribute("outerHTML")[[1]])))
-		year <- regmatches(
-			resYear$getElementAttribute("outerHTML")[[1]],
-			regexpr("\\d{4}", resYear$getElementAttribute("outerHTML")[[1]])
-		)
-		return(c(name, author, year))
-	} else {
-		return(rep(NA, 3))
-	}
+    if (!("remDr" %in% ls(globalenv()))) {
+        print("Start an rsDriver instance first.")
+        return(c(NA, NA))
+    }
+    remDr$navigate(paste0("https://tropicos.org/name/", nameid))
+    repeat {
+        Sys.sleep(2)
+        res <- remDr$findElements(using = "class", value = "control-group")
+        resYear <- remDr$findElements(using = "class", value = "section-group")
+        if (length(res) > 0 && length(resYear) > 0) break
+    }
+    for (i in seq_along(res)) {
+        if (grepl("Basionym:", res[[i]]$getElementAttribute("outerHTML")[[1]])) {
+            res <- res[[i + 1]]
+            break
+        }
+    }
+    for (i in seq_along(resYear)) {
+        if (grepl("Published In:", resYear[[i]]$getElementAttribute("outerHTML")[[1]])) {
+            resYear <- resYear[[i]]
+            break
+        }
+    }
+    if (length(res) == 1 && length(resYear) == 1) {
+        author <- sub("</a>.*", "", sub(".*</i>\\s*", "", res$getElementAttribute("outerHTML")[[1]]))
+        name <- gsub("</?i>", "", sub("[^<>]+</a>.*", "", sub(".*><i>\\s*", "", res$getElementAttribute("outerHTML")[[1]])))
+        year <- regmatches(
+            resYear$getElementAttribute("outerHTML")[[1]],
+            regexpr("\\d{4}", resYear$getElementAttribute("outerHTML")[[1]])
+        )
+        return(c(name, author, year))
+    } else {
+        return(rep(NA, 3))
+    }
 }
 
 # read in data
@@ -307,14 +307,14 @@ aut <- authorNormalization(aut) # normalize primary authors not found
 
 # replace authors by normalized forms when necessary
 for (i in seq_len(nrow(aut))) {
-	# print(wcvpn[grepl(aut$oriAuthor[i],primary_author)])
-	# sometimes, replacements may be problematic, because correct and wrong versions of author
-	# names may contain each other, therefore, safest is to just select entries that have wrong
-	# but not correct versions of the author name in focus
-	wcvpn[
-		grepl(aut$oriAuthor[i], primary_author, fixed = TRUE) & !grepl(aut$newAuthor[i], primary_author, fixed = TRUE),
-		primary_author := gsub(aut$oriAuthor[i], aut$newAuthor[i], primary_author, fixed = TRUE)
-	]
+    # print(wcvpn[grepl(aut$oriAuthor[i],primary_author)])
+    # sometimes, replacements may be problematic, because correct and wrong versions of author
+    # names may contain each other, therefore, safest is to just select entries that have wrong
+    # but not correct versions of the author name in focus
+    wcvpn[
+        grepl(aut$oriAuthor[i], primary_author, fixed = TRUE) & !grepl(aut$newAuthor[i], primary_author, fixed = TRUE),
+        primary_author := gsub(aut$oriAuthor[i], aut$newAuthor[i], primary_author, fixed = TRUE)
+    ]
 }
 
 # get flourishing estimate through checks of authors' appearances in taxon names
@@ -326,20 +326,20 @@ aNI[, paEnd := 0]
 aNI[, aaEnd := 0]
 
 for (i in seq_len(nrow(aNI))) {
-	temp <- wcvpn[grepl(paste0("(^|\\W)", aNI$abbr[i], "(\\W|$)"), taxon_authors)]
-	aNI[i, aa := nrow(temp)]
-	aNI[i, aaStart := min(temp$year, na.rm = TRUE)]
-	aNI[i, aaEnd := max(temp$year, na.rm = TRUE)]
-	temp <- temp[grepl(paste0("(^|\\W)", aNI$abbr[i], "(\\W|$)"), primary_author)]
-	aNI[i, pa := nrow(temp)]
-	aNI[i, paStart := min(temp$year, na.rm = TRUE)]
-	aNI[i, paEnd := max(temp$year, na.rm = TRUE)]
+    temp <- wcvpn[grepl(paste0("(^|\\W)", aNI$abbr[i], "(\\W|$)"), taxon_authors)]
+    aNI[i, aa := nrow(temp)]
+    aNI[i, aaStart := min(temp$year, na.rm = TRUE)]
+    aNI[i, aaEnd := max(temp$year, na.rm = TRUE)]
+    temp <- temp[grepl(paste0("(^|\\W)", aNI$abbr[i], "(\\W|$)"), primary_author)]
+    aNI[i, pa := nrow(temp)]
+    aNI[i, paStart := min(temp$year, na.rm = TRUE)]
+    aNI[i, paEnd := max(temp$year, na.rm = TRUE)]
 }
 checkCols <- c("pa", "aa", "paStart", "aaStart", "paEnd", "aaEnd")
 aNI[, (checkCols) := lapply(.SD, function(x) {
-	x[!is.finite(x)] <- NA
-	x[x == 0] <- NA
-	x
+    x[!is.finite(x)] <- NA
+    x[x == 0] <- NA
+    x
 }), .SDcols = (checkCols)]
 
 # We need the year of the description.
@@ -353,10 +353,10 @@ wcvpn[plant_name_id == "1145127-az", basionym_plant_name_id := "1165611-az"]
 
 nb <- wcvpn[grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == ""] # no basionym given
 resAll <- data.table(
-	accIpniid = character(), accName = character(), accAuthors = character(),
-	oriIpniid = character(), oriName = character(), oriAuthors = character(),
-	oriYear = numeric(), tropicosid = numeric(), authorErr = logical(),
-	foundBas = logical(), foundRem = logical()
+    accIpniid = character(), accName = character(), accAuthors = character(),
+    oriIpniid = character(), oriName = character(), oriAuthors = character(),
+    oriYear = numeric(), tropicosid = numeric(), authorErr = logical(),
+    foundBas = logical(), foundRem = logical()
 )
 resAll <- rbind(resAll[0][seq_len(nrow(nb))])
 resAll[, accIpniid := nb$ipni_id]
@@ -366,74 +366,74 @@ resAll[, oriAuthors := sub("\\(", "", sub("\\).*", "", accAuthors))]
 
 # search for missing basionyms using POWO, IPNI and tropicos
 for (i in seq_len(nrow(nb))) {
-	print(i)
-	# try POWO
-	resFull <- POWOSearch(resAll[i]$accIpniid)
-	if (!all(is.na(resFull))) {
-		resAll[i, oriIpniid := resFull[1]]
-		resAll[i, oriName := resFull[2]]
-		if (resFull[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-		resAll[i, oriAuthors := resFull[3]]
-		resAll[i, oriYear := as.numeric(resFull[4])]
-	} else {
-		# try IPNI
-		resFull <- readLines(paste0("https://www.ipni.org/n/", resAll[i]$accIpniid))
-		# check whether correctly annotated basionym exists
-		searchBas <- grepl("<dt>Basionym</dt>", resFull)
-		resAll[i, foundBas := sum(searchBas) > 0]
-		if (resAll[i]$foundBas) {
-			# enter data from IPNI
-			res <- resFull[searchBas]
-			resAll[i, oriIpniid := sub("/n/", "", regmatches(res, regexpr("/n/\\d+-\\d", res)))]
-			resAll[i, oriName := gsub("<[^<>]+>", "", regmatches(res, regexpr("<i.*/i>", res)))]
-			author <- sub(".*>\\s*", "", sub(",?\\s*<.*", "", regmatches(res, regexpr("/i>.*<", res))))
-			if (author == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-			resAll[i, oriAuthors := author]
-			resAll[i, oriYear := as.numeric(gsub("\\D", "", regmatches(res, regexpr("\\(\\d{4}\\)", res))))]
-		} else {
-			# check whether badly annotated basionym exists
-			searchRem <- grepl("<dt>Remarks</dt>", resFull)
-			resAll[i, foundRem := sum(searchRem) > 0]
-			if (resAll[i]$foundRem) {
-				res <- resFull[searchRem]
-				res <- sub("\\(.*\\)", "", res)
-				res <- sub("^[[:upper:]]\\..*", "", res)
-				res <- sub(".*>", "", sub("</dd>$", "", res))
-				epi1 <- sub("^\\s+", "", regmatches(resAll[i]$accName, regexpr("\\s[[:lower:]]\\S+", resAll[i]$accName)))
-				epi2 <- sub("^\\s+", "", regmatches(res, regexpr("\\s[[:lower:]]\\S+", res))) # basionym is other genus
-				epi3 <- sub("^\\.\\s+", "", regmatches(res, regexpr("\\.\\s[[:lower:]]\\S+", res))) # basionym is infraspecies
-				minChar <- min(nchar(epi1), nchar(epi2), nchar(epi3))
-				epi1 <- substr(epi1, 1, ceiling(minChar / 2))
-				epi2 <- substr(epi2, 1, ceiling(minChar / 2))
-				epi3 <- substr(epi3, 1, ceiling(minChar / 2))
-				if (length(epi2) < 1) epi2 <- ""
-				if (length(epi3) < 1) epi3 <- ""
-				if (epi1 == epi2 || epi1 == epi3) {
-					resAll[i, oriName := res] # year will be extracted later
-				} else {
-					# try tropicos
-					res <- tropicosBasionym(resAll[i]$accName)
-					if (!is.na(res[3])) {
-						if (res[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-						resAll[i, oriAuthors := res[3]]
-					}
-					resAll[i, oriName := res[2]]
-					resAll[i, tropicosid := res[1]]
-					resAll[i, oriYear := as.numeric(res[4])]
-				}
-			} else {
-				# try tropicos
-				res <- tropicosBasionym(resAll[i]$accName)
-				if (!is.na(res[3])) {
-					if (res[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-					resAll[i, oriAuthors := res[3]]
-				}
-				resAll[i, oriName := res[2]]
-				resAll[i, tropicosid := res[1]]
-				resAll[i, oriYear := as.numeric(res[4])]
-			}
-		}
-	}
+    print(i)
+    # try POWO
+    resFull <- POWOSearch(resAll[i]$accIpniid)
+    if (!all(is.na(resFull))) {
+        resAll[i, oriIpniid := resFull[1]]
+        resAll[i, oriName := resFull[2]]
+        if (resFull[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+        resAll[i, oriAuthors := resFull[3]]
+        resAll[i, oriYear := as.numeric(resFull[4])]
+    } else {
+        # try IPNI
+        resFull <- readLines(paste0("https://www.ipni.org/n/", resAll[i]$accIpniid))
+        # check whether correctly annotated basionym exists
+        searchBas <- grepl("<dt>Basionym</dt>", resFull)
+        resAll[i, foundBas := sum(searchBas) > 0]
+        if (resAll[i]$foundBas) {
+            # enter data from IPNI
+            res <- resFull[searchBas]
+            resAll[i, oriIpniid := sub("/n/", "", regmatches(res, regexpr("/n/\\d+-\\d", res)))]
+            resAll[i, oriName := gsub("<[^<>]+>", "", regmatches(res, regexpr("<i.*/i>", res)))]
+            author <- sub(".*>\\s*", "", sub(",?\\s*<.*", "", regmatches(res, regexpr("/i>.*<", res))))
+            if (author == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+            resAll[i, oriAuthors := author]
+            resAll[i, oriYear := as.numeric(gsub("\\D", "", regmatches(res, regexpr("\\(\\d{4}\\)", res))))]
+        } else {
+            # check whether badly annotated basionym exists
+            searchRem <- grepl("<dt>Remarks</dt>", resFull)
+            resAll[i, foundRem := sum(searchRem) > 0]
+            if (resAll[i]$foundRem) {
+                res <- resFull[searchRem]
+                res <- sub("\\(.*\\)", "", res)
+                res <- sub("^[[:upper:]]\\..*", "", res)
+                res <- sub(".*>", "", sub("</dd>$", "", res))
+                epi1 <- sub("^\\s+", "", regmatches(resAll[i]$accName, regexpr("\\s[[:lower:]]\\S+", resAll[i]$accName)))
+                epi2 <- sub("^\\s+", "", regmatches(res, regexpr("\\s[[:lower:]]\\S+", res))) # basionym is other genus
+                epi3 <- sub("^\\.\\s+", "", regmatches(res, regexpr("\\.\\s[[:lower:]]\\S+", res))) # basionym is infraspecies
+                minChar <- min(nchar(epi1), nchar(epi2), nchar(epi3))
+                epi1 <- substr(epi1, 1, ceiling(minChar / 2))
+                epi2 <- substr(epi2, 1, ceiling(minChar / 2))
+                epi3 <- substr(epi3, 1, ceiling(minChar / 2))
+                if (length(epi2) < 1) epi2 <- ""
+                if (length(epi3) < 1) epi3 <- ""
+                if (epi1 == epi2 || epi1 == epi3) {
+                    resAll[i, oriName := res] # year will be extracted later
+                } else {
+                    # try tropicos
+                    res <- tropicosBasionym(resAll[i]$accName)
+                    if (!is.na(res[3])) {
+                        if (res[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+                        resAll[i, oriAuthors := res[3]]
+                    }
+                    resAll[i, oriName := res[2]]
+                    resAll[i, tropicosid := res[1]]
+                    resAll[i, oriYear := as.numeric(res[4])]
+                }
+            } else {
+                # try tropicos
+                res <- tropicosBasionym(resAll[i]$accName)
+                if (!is.na(res[3])) {
+                    if (res[3] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+                    resAll[i, oriAuthors := res[3]]
+                }
+                resAll[i, oriName := res[2]]
+                resAll[i, tropicosid := res[1]]
+                resAll[i, oriYear := as.numeric(res[4])]
+            }
+        }
+    }
 }
 
 # check whether there are problematic entries without data
@@ -442,68 +442,68 @@ resAll[is.na(oriName) & is.na(tropicosid)]
 # perform details search for names with likely basionym in remarks
 # POWO search
 if (any(!is.na(resAll$oriName) & is.na(resAll$oriYear))) {
-	for (i in seq_len(nrow(resAll))) {
-		if (!is.na(resAll$oriName[i]) && is.na(resAll$oriYear[i])) {
-			print(i)
-			res <- pow_search(resAll$oriName[i])$data
-			res <- res[res$name == resAll$oriName[i], ]
-			authComp <- colSums(sapply(res$author, function(x) authorMatch(resAll[i]$oriAuthors, x)))
-			if (any(authComp > 0.4)) {
-				res <- res[order(authComp, decreasing = TRUE)[1], ]
-				if (res$author == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-				resAll[i, oriAuthors := res$author]
-				resAll[i, oriIpniid := sub(".*:", "", res$url)]
-				resAll[i, oriYear := POWOSearch(resAll$oriIpniid[i], basionymSearch = FALSE)]
-			}
-		}
-	}
+    for (i in seq_len(nrow(resAll))) {
+        if (!is.na(resAll$oriName[i]) && is.na(resAll$oriYear[i])) {
+            print(i)
+            res <- pow_search(resAll$oriName[i])$data
+            res <- res[res$name == resAll$oriName[i], ]
+            authComp <- colSums(sapply(res$author, function(x) authorMatch(resAll[i]$oriAuthors, x)))
+            if (any(authComp > 0.4)) {
+                res <- res[order(authComp, decreasing = TRUE)[1], ]
+                if (res$author == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+                resAll[i, oriAuthors := res$author]
+                resAll[i, oriIpniid := sub(".*:", "", res$url)]
+                resAll[i, oriYear := POWOSearch(resAll$oriIpniid[i], basionymSearch = FALSE)]
+            }
+        }
+    }
 }
 
 # IPNI search
 if (any(!is.na(resAll$oriName) & is.na(resAll$oriYear))) {
-	# close all open ports
-	try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+    # close all open ports
+    try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
 
-	# necessary for tropicosDetailsBasionym
-	rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
-	remDr <- rD[["client"]]
-	remDr$navigate("https://www.ipni.org")
+    # necessary for tropicosDetailsBasionym
+    rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
+    remDr <- rD[["client"]]
+    remDr$navigate("https://www.ipni.org")
 
-	for (i in seq_len(nrow(resAll))) {
-		if (!is.na(resAll$oriName[i]) && is.na(resAll$oriYear[i])) {
-			print(i)
-			res <- ipniTableYear(resAll$oriName[i], resAll$oriAuthors[i])
-			resAll[i, oriYear := res]
-		}
-	}
-	# close all open ports
-	try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+    for (i in seq_len(nrow(resAll))) {
+        if (!is.na(resAll$oriName[i]) && is.na(resAll$oriYear[i])) {
+            print(i)
+            res <- ipniTableYear(resAll$oriName[i], resAll$oriAuthors[i])
+            resAll[i, oriYear := res]
+        }
+    }
+    # close all open ports
+    try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
 }
 
 # perform details search for names with tropicosid but without synonyms
 if (any(is.na(resAll$oriName) & !is.na(resAll[i]$tropicosid))) {
-	# close all open ports
-	try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+    # close all open ports
+    try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
 
-	# necessary for tropicosDetailsBasionym
-	rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
-	remDr <- rD[["client"]]
-	remDr$navigate("https://tropicos.org/home")
+    # necessary for tropicosDetailsBasionym
+    rD <- rsDriver(browser = "firefox", verbose = FALSE, chromever = NULL)
+    remDr <- rD[["client"]]
+    remDr$navigate("https://tropicos.org/home")
 
-	for (i in seq_len(nrow(resAll))) {
-		if (is.na(resAll$oriName[i]) && !is.na(resAll$tropicosid[i])) {
-			print(i)
-			res <- tropicosDetailsBasionym(resAll[i]$tropicosid)
-			if (!all(is.na(res))) {
-				if (res[2] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
-			}
-			resAll[i, oriName := res[1]]
-			resAll[i, oriAuthors := res[2]]
-			resAll[i, oriYear := res[3]]
-		}
-	}
-	# close all open ports
-	try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
+    for (i in seq_len(nrow(resAll))) {
+        if (is.na(resAll$oriName[i]) && !is.na(resAll$tropicosid[i])) {
+            print(i)
+            res <- tropicosDetailsBasionym(resAll[i]$tropicosid)
+            if (!all(is.na(res))) {
+                if (res[2] == resAll[i]$oriAuthors) resAll[i, authorErr := FALSE] else resAll[i, authorErr := TRUE]
+            }
+            resAll[i, oriName := res[1]]
+            resAll[i, oriAuthors := res[2]]
+            resAll[i, oriYear := res[3]]
+        }
+    }
+    # close all open ports
+    try(system("taskkill /im java.exe /f", intern = FALSE, ignore.stdout = FALSE), silent = TRUE)
 }
 
 # check which entries remain
@@ -529,8 +529,8 @@ wcvpn[basionym_plant_name_id != "", first_authors := authorsTemp]
 accIpniid <- wcvpn[grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == ""]$ipni_id
 setkey(resAll, accIpniid)
 wcvpn[
-	grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == "",
-	first_publication_date := resAll[accIpniid]$oriYear
+    grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == "",
+    first_publication_date := resAll[accIpniid]$oriYear
 ]
 wcvpn[grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == "", first_authors := resAll[accIpniid]$oriAuthors]
 
@@ -538,13 +538,13 @@ wcvpn[grepl("\\(|\\)", taxon_authors) & basionym_plant_name_id == "", first_auth
 # In general, the first date mentioned will be the correct,
 # except for three dates mentioned, in which case it is the last.
 wcvpn[
-	(first_publication_date < 1753 | first_publication_date > 2023) & nchar(first_publication_date) == 12,
-	first_publication_date :=
-		as.numeric(sub("^\\d{8}", "", first_publication_date))
+    (first_publication_date < 1753 | first_publication_date > 2023) & nchar(first_publication_date) == 12,
+    first_publication_date :=
+        as.numeric(sub("^\\d{8}", "", first_publication_date))
 ]
 wcvpn[
-	(first_publication_date < 1753 | first_publication_date > 2023) & nchar(first_publication_date) == 8,
-	first_publication_date := as.numeric(sub("\\d{4}$", "", first_publication_date))
+    (first_publication_date < 1753 | first_publication_date > 2023) & nchar(first_publication_date) == 8,
+    first_publication_date := as.numeric(sub("\\d{4}$", "", first_publication_date))
 ]
 wcvpn[(first_publication_date < 1753 | first_publication_date > 2023)]
 
@@ -571,15 +571,15 @@ authors <- strsplit(wcvpn$first_authors, split = ",|&|e\\x.?")
 authors <- sort(unique(sub("^\\s+|\\s+$", "", unlist(authors))))
 pubRange <- data.table(author = authors, firstPub = NA_real_, lastPub = NA_real_)
 for (i in seq_along(authors)) {
-	pubDates <- wcvpn[grepl(authors[i], first_authors)]$first_publication_date
-	pubRange[i, firstPub := min(pubDates)]
-	pubRange[i, lastPub := max(pubDates)]
-	pubDates <- c(
-		wcvpn[grepl(authors[i], first_authors)]$first_publication_date,
-		wcvpn[grepl(authors[i], taxon_authors)]$year
-	)
-	pubRange[i, firstRev := min(pubDates, na.rm = TRUE)]
-	pubRange[i, lastRev := max(pubDates, na.rm = TRUE)]
+    pubDates <- wcvpn[grepl(authors[i], first_authors)]$first_publication_date
+    pubRange[i, firstPub := min(pubDates)]
+    pubRange[i, lastPub := max(pubDates)]
+    pubDates <- c(
+        wcvpn[grepl(authors[i], first_authors)]$first_publication_date,
+        wcvpn[grepl(authors[i], taxon_authors)]$year
+    )
+    pubRange[i, firstRev := min(pubDates, na.rm = TRUE)]
+    pubRange[i, lastRev := max(pubDates, na.rm = TRUE)]
 }
 
 # add number of active authors of descriptions (activity = after first and before last description)
@@ -588,7 +588,7 @@ lines(dat$year, dat$descAuth, col = "red", lwd = 2)
 
 # add number of active authors of descriptions OR revisions
 dat[, revAuth := sapply(year, function(x) {
-	sum((pubRange$firstPub <= x | pubRange$firstRev <= x) & (pubRange$lastPub >= x | pubRange$lastRev >= x))
+    sum((pubRange$firstPub <= x | pubRange$firstRev <= x) & (pubRange$lastPub >= x | pubRange$lastRev >= x))
 })]
 lines(dat$year, dat$revAuth, col = "green", lwd = 2)
 
@@ -607,7 +607,7 @@ lines(dat$year, dat$revAuth, col = "green", lwd = 2)
 # of basionyms, but of the new names of certain species.
 
 dat[, pubAuth := sapply(year, function(x) {
-	length(unique(unlist(strsplit(wcvpn[first_publication_date == x]$first_authors, split = ",|&|e\\x.?"))))
+    length(unique(unlist(strsplit(wcvpn[first_publication_date == x]$first_authors, split = ",|&|e\\x.?"))))
 })]
 lines(dat$year, dat$pubAuth, col = "blue", lwd = 2)
 dat[, descLastYear := c(0, desc[-length(desc)])]
@@ -652,61 +652,61 @@ par(oma = c(4, 6, 3, 1))
 # plot descriptions per year
 par(mfrow = c(2, 7))
 responseFormula <- c(
-	"rep(exp(pred[j, 1]), nrow(dat))",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year)",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year)",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear))",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth)",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth)",
-	"exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)) * mean(dat$pubAuth)"
+    "rep(exp(pred[j, 1]), nrow(dat))",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year)",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year)",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear))",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth)",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth)",
+    "exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)) * mean(dat$pubAuth)"
 )
 for (i in seq_along(models)) {
-	plot(NULL, xlim = range(dat$year), ylim = c(0, max(dat$desc)), xlab = "", xaxt = "n", ylab = "", yaxt = "n")
-	mtext(models[i], 3, 1, font = 2)
-	if (i < 2) {
-		axis(2)
-		mtext("descriptions per year", 2, 2.5)
-	}
-	abline(h = seq(0, max(dat$desc), 50), lty = 3)
-	abline(v = seq(1750, 2000, 50), lty = 3)
-	segments(dat$year, 0, dat$year, dat$desc, lwd = 2, col = "grey")
-	# predictions
-	pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
-	for (j in seq_len(posteriorDraws)) {
-		lines(dat$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
-	}
-	lines(dat$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
-		lwd = 2
-	)
+    plot(NULL, xlim = range(dat$year), ylim = c(0, max(dat$desc)), xlab = "", xaxt = "n", ylab = "", yaxt = "n")
+    mtext(models[i], 3, 1, font = 2)
+    if (i < 2) {
+        axis(2)
+        mtext("descriptions per year", 2, 2.5)
+    }
+    abline(h = seq(0, max(dat$desc), 50), lty = 3)
+    abline(v = seq(1750, 2000, 50), lty = 3)
+    segments(dat$year, 0, dat$year, dat$desc, lwd = 2, col = "grey")
+    # predictions
+    pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
+    for (j in seq_len(posteriorDraws)) {
+        lines(dat$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
+    }
+    lines(dat$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
+        lwd = 2
+    )
 }
 # plot total descriptions
 responseFormula <- c(
-	"cumsum(rep(exp(pred[j, 1]), nrow(dat)))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)) * mean(dat$pubAuth))"
+    "cumsum(rep(exp(pred[j, 1]), nrow(dat)))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year) * mean(dat$pubAuth))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * dat$year + pred[j, 3] * mean(dat$descLastYear)) * mean(dat$pubAuth))"
 )
 for (i in seq_along(models)) {
-	plot(NULL, xlim = range(dat$year), ylim = c(0, 7000), xlab = "", ylab = "", yaxt = "n")
-	if (i < 2) {
-		axis(2)
-		mtext("total descriptions", 2, 2.5)
-	}
-	mtext("year", 1, 2.5)
-	abline(h = c(1:7) * 1e3, lty = 3)
-	abline(v = seq(1750, 2000, 50), lty = 3)
-	# predictions
-	pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
-	for (j in seq_len(posteriorDraws)) {
-		lines(dat$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
-	}
-	lines(dat$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
-		lwd = 2
-	)
-	lines(dat$year, cumsum(dat$desc), lwd = 2)
+    plot(NULL, xlim = range(dat$year), ylim = c(0, 7000), xlab = "", ylab = "", yaxt = "n")
+    if (i < 2) {
+        axis(2)
+        mtext("total descriptions", 2, 2.5)
+    }
+    mtext("year", 1, 2.5)
+    abline(h = c(1:7) * 1e3, lty = 3)
+    abline(v = seq(1750, 2000, 50), lty = 3)
+    # predictions
+    pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
+    for (j in seq_len(posteriorDraws)) {
+        lines(dat$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
+    }
+    lines(dat$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
+        lwd = 2
+    )
+    lines(dat$year, cumsum(dat$desc), lwd = 2)
 }
 dev.off()
 
@@ -742,18 +742,18 @@ datShort <- dat[year > 1754]
 ms1 <- brm(desc ~ 1, data = datShort, family = negbinomial)
 ms2 <- brm(desc ~ year, data = datShort, family = negbinomial)
 ms3 <- brm(desc ~ year + ar(p = 1),
-	data = datShort, family = negbinomial,
-	iter = 20000, control = list(adapt_delta = 0.95)
+    data = datShort, family = negbinomial,
+    iter = 20000, control = list(adapt_delta = 0.95)
 )
 ms3.2 <- brm(desc ~ year + descLastYear, data = datShort, family = negbinomial)
 ms4 <- brm(desc ~ year + offset(log(pubAuth)), data = datShort, family = negbinomial)
 ms4.1 <- brm(desc ~ year + ar(p = 1) + offset(log(pubAuth)),
-	data = datShort,
-	family = negbinomial, iter = 20000, control = list(adapt_delta = 0.95)
+    data = datShort,
+    family = negbinomial, iter = 20000, control = list(adapt_delta = 0.95)
 )
 ms4.2 <- brm(desc ~ year + descLastYear + offset(log(pubAuth)),
-	data = datShort,
-	family = negbinomial
+    data = datShort,
+    family = negbinomial
 )
 
 models <- c("ms1", "ms2", "ms3", "ms3.2", "ms4", "ms4.1", "ms4.2")
@@ -769,60 +769,60 @@ par(oma = c(4, 6, 3, 1))
 # plot descriptions per year
 par(mfrow = c(2, 7))
 responseFormula <- c(
-	"rep(exp(pred[j, 1]), nrow(datShort))",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year)",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year)",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear))",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth)",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth)",
-	"exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)) * mean(datShort$pubAuth)"
+    "rep(exp(pred[j, 1]), nrow(datShort))",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year)",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year)",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear))",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth)",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth)",
+    "exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)) * mean(datShort$pubAuth)"
 )
 for (i in seq_along(models)) {
-	plot(NULL, xlim = range(datShort$year), ylim = c(0, max(datShort$desc)), xlab = "", xaxt = "n", ylab = "", yaxt = "n")
-	mtext(models[i], 3, 1, font = 2)
-	if (i < 2) {
-		axis(2)
-		mtext("descriptions per year", 2, 2.5)
-	}
-	abline(h = seq(0, max(datShort$desc), 50), lty = 3)
-	abline(v = seq(1750, 2000, 50), lty = 3)
-	segments(datShort$year, 0, datShort$year, datShort$desc, lwd = 2, col = "grey")
-	# predictions
-	pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
-	for (j in seq_len(posteriorDraws)) {
-		lines(datShort$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
-	}
-	lines(datShort$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
-		lwd = 2
-	)
+    plot(NULL, xlim = range(datShort$year), ylim = c(0, max(datShort$desc)), xlab = "", xaxt = "n", ylab = "", yaxt = "n")
+    mtext(models[i], 3, 1, font = 2)
+    if (i < 2) {
+        axis(2)
+        mtext("descriptions per year", 2, 2.5)
+    }
+    abline(h = seq(0, max(datShort$desc), 50), lty = 3)
+    abline(v = seq(1750, 2000, 50), lty = 3)
+    segments(datShort$year, 0, datShort$year, datShort$desc, lwd = 2, col = "grey")
+    # predictions
+    pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
+    for (j in seq_len(posteriorDraws)) {
+        lines(datShort$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
+    }
+    lines(datShort$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
+        lwd = 2
+    )
 }
 # plot total descriptions
 responseFormula <- c(
-	"cumsum(rep(exp(pred[j, 1]), nrow(datShort)))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth))",
-	"cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)) * mean(datShort$pubAuth))" # nolint: line_length_linter.
+    "cumsum(rep(exp(pred[j, 1]), nrow(datShort)))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year) * mean(datShort$pubAuth))",
+    "cumsum(exp(pred[j, 1] + pred[j, 2] * datShort$year + pred[j, 3] * mean(datShort$descLastYear)) * mean(datShort$pubAuth))" # nolint: line_length_linter.
 )
 for (i in seq_along(models)) {
-	plot(NULL, xlim = range(datShort$year), ylim = c(0, 7000), xlab = "", ylab = "", yaxt = "n")
-	if (i < 2) {
-		axis(2)
-		mtext("total descriptions", 2, 2.5)
-	}
-	mtext("year", 1, 2.5)
-	abline(h = c(1:7) * 1e3, lty = 3)
-	abline(v = seq(1750, 2000, 50), lty = 3)
-	# predictions
-	pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
-	for (j in seq_len(posteriorDraws)) {
-		lines(datShort$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
-	}
-	lines(datShort$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
-		lwd = 2
-	)
-	lines(datShort$year, cumsum(datShort$desc), lwd = 2)
+    plot(NULL, xlim = range(datShort$year), ylim = c(0, 7000), xlab = "", ylab = "", yaxt = "n")
+    if (i < 2) {
+        axis(2)
+        mtext("total descriptions", 2, 2.5)
+    }
+    mtext("year", 1, 2.5)
+    abline(h = c(1:7) * 1e3, lty = 3)
+    abline(v = seq(1750, 2000, 50), lty = 3)
+    # predictions
+    pred <- fixef(eval(as.symbol(models[i])), summary = FALSE)
+    for (j in seq_len(posteriorDraws)) {
+        lines(datShort$year, eval(parse(text = responseFormula[i])), col = "#add8e6")
+    }
+    lines(datShort$year, eval(parse(text = gsub("pred\\[j,\\s*", paste0("fixef(", models[i], ")["), responseFormula[i]))),
+        lwd = 2
+    )
+    lines(datShort$year, cumsum(datShort$desc), lwd = 2)
 }
 dev.off()
