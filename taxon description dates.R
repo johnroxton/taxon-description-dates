@@ -143,7 +143,7 @@ load(versions[length(versions)])
 if (length(pt$tip.label) < nrow(taxa)) {
     for (i in seq_along(taxa$ott_id[opt_in_tree])) {
         if (i > 1) {
-            pt <- tol_induced_subtree(ott_id = taxa$ott_id[opt_in_tree][1:i])
+            pt <- tol_induced_subtree(ott_id = taxa$ott_id[opt_in_tree][seq_len(i)])
             if (length(pt$tip.label) != i) break
         }
     }
@@ -241,7 +241,7 @@ parBackup <- par() # save graphics parameters for multiple trials
 
 # choose colors for monophyletic groups
 # for coloring purposes change node labels into numbers (can be omitted after first run)
-# pt$node.label <- length(pt$tip.label) + 1:length(pt$node.label)
+# pt$node.label <- length(pt$tip.label) + seq_along(pt$node.label)
 xlim <- 1
 ylim <- 1.6
 cols <- rep("black", nrow(pt$edge))
@@ -275,7 +275,7 @@ for (i in groupsVec) {
     )
     img <- readPNG(paste0("group icons/", groupsMeta$name[i], ".png"))
     colRGB <- col2rgb(groupsMeta$color[i]) / 255
-    for (j in 1:3) img[, , j] <- colRGB[[j]]
+    for (j in seq_len(3)) img[, , j] <- colRGB[[j]]
     rasterImage(img, tipIncrease * cos(2 * pi * (i - 1) / nrow(groupsMeta)) - imageSize,
         tipIncrease * sin(2 * pi * (i - 1) / nrow(groupsMeta)) - imageSize,
         tipIncrease * cos(2 * pi * (i - 1) / nrow(groupsMeta)) + imageSize,
@@ -413,7 +413,7 @@ for (i in seq_along(plotGroups)) {
         img <- readPNG(paste0("group icons/", groupsMeta$name[j], ".png"))
         scale <- 30 / diff(range(groupsData$year)) * 0.6
         colRGB <- col2rgb(cols[k]) / 255
-        for (l in 1:3) img[, , l] <- colRGB[[l]]
+        for (l in seq_len(3)) img[, , l] <- colRGB[[l]]
         rasterImage(img, 1760, 1 - (k + 1) * 0.07 - 0.03, 1775, 1 - (k + 1) * 0.07 - 0.03 + scale)
         k <- k + 1
     }
@@ -422,7 +422,7 @@ for (i in seq_along(plotGroups)) {
     colParts1 <- c(substr(col1, 2, 3), substr(col1, 4, 5), substr(col1, 6, 7))
     colParts2 <- c(substr(col2, 2, 3), substr(col2, 4, 5), substr(col2, 6, 7))
     colRange <- list()
-    for (k in 1:3) {
+    for (k in seq_len(3)) {
         colRange[[k]] <- sprintf("%02x", as.hexmode(round(seq(paste0("0x", colParts2)[k],
             paste0("0x", colParts1)[k],
             l = 100
@@ -522,7 +522,7 @@ for (i in seq_along(plotGroups)) {
         }
         scale <- 30 / diff(range(groupsData$year)) * 0.6
         colRGB <- col2rgb(cols[k]) / 255
-        for (l in 1:3) img[, , l] <- colRGB[[l]]
+        for (l in seq_len(3)) img[, , l] <- colRGB[[l]]
         rasterImage(img, 1760, 1 - (k + 1) * 0.07 - 0.03, 1775, 1 - (k + 1) * 0.07 - 0.03 + scale)
         k <- k + 1
     }
