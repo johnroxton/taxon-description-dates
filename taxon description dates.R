@@ -2418,7 +2418,7 @@ nextScript <- NULL
 # load in libraries
 library(data.table) # handle large datasets
 library(RSelenium) # for web scraping
-library(doSNOW)
+library(doParallel)
 
 # clear workspace
 rm(list = ls())
@@ -2552,8 +2552,8 @@ if (length(resFiles) > 0) {
 
 # cluster preparation
 clustNumAll <- 8 # number of cores to use
-cl <- parallel::makeCluster(clustNumAll)
-registerDoSNOW(cl)
+cl <- makeCluster(clustNumAll)
+registerDoParallel(cl)
 
 # clearly assign jobs to workers so that they make best use of the firefox instances opened
 nJobs <- rep(sum(sapply(resAll, is.atomic)) %/% clustNumAll, clustNumAll)
